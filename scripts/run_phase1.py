@@ -8,11 +8,16 @@
 #   learn_trajectory.jsonl, learn_results.jsonl    learning phase
 #   evolution_log.jsonl                            every Refiner pass: response, applied edits (before/after), rejected edits
 #   eval_trajectory.jsonl, eval_results.jsonl      evaluation phase (same format as Phase 0 results.jsonl)
+#   gate_trajectory.jsonl, gate_results.jsonl      only with --gate (Fix B): the gate's test runs
+# Fix B (--gate): after the Refiner edits the harness, rerun the train tasks that ran with the
+# old harness since the last edit (at most GATE_TASKS of them), same seed, with the new harness.
+# Keep the edits only if the new harness passes at least as many; otherwise go back to the old one.
 # Safety: run_shell and run_skill run in the sandbox. RAM: the model is unloaded after every
 # task and every Refiner call; if Ollama reports more than MEMORY_LIMIT_GB the run stops.
 # Run: uv run python -m scripts.run_phase1 --seeds 3
 
 import argparse
+import copy
 import json
 import os
 import random
@@ -27,11 +32,14 @@ from harness.state import create_state, load_state, save_state
 from tasks.pilot import ALL_TASKS
 from tasks.task import make_workdir, remove_workdir
 
-MEMORY_LIMIT_GB = 10
+MEMORY_LIMIT_GB = 10           # task model (qwen)
+REFINER_MEMORY_LIMIT_GB = 16   # refiner model (e.g. gemma4:e4b); Mac mini has 24 GB
+GATE_TASKS = 3                 # Fix B: how many recent train tasks the gate reruns
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", default="qwen3.5:0.8b-mlx")
 parser.add_argument("--refiner-model", default=None, help="model that writes harness edits (Fix A); default: same as --model")
+parser.add_argument("--gate", action="store_true", help="Fix B: keep Refiner edits only if they do not lower the pass count on recent train tasks")
 parser.add_argument("--seeds", type=int, default=3)
 parser.add_argument("--first-seed", type=int, default=0)
 parser.add_argument("--max-steps", type=int, default=15)
@@ -56,6 +64,8 @@ for task in ALL_TASKS:
 run_name = time.strftime("%Y%m%d-%H%M%S") + "_phase1_" + args.model.replace(":", "-")
 if args.refiner_model != args.model:
     run_name = run_name + "_refiner-" + args.refiner_model.replace(":", "-")
+if args.gate:
+    run_name = run_name + "_gate"
 run_dir = os.path.join("runs", run_name)
 os.makedirs(run_dir)
 config = dict(vars(args))
@@ -69,12 +79,15 @@ print("run folder:", run_dir, "| server:", config["server"])
 
 def memory_check(where):
     # check and unload both models (they are the same model unless --refiner-model is set)
-    used = max(memory_gb(args.model), memory_gb(args.refiner_model))
+    # only one model is loaded at a time: qwen after a task, the refiner after a refiner generation
+    task_used = memory_gb(args.model)
+    refiner_used = memory_gb(args.refiner_model) if args.refiner_model != args.model else 0.0
     unload(args.model)
     if args.refiner_model != args.model:
         unload(args.refiner_model)
-    if used > MEMORY_LIMIT_GB:
-        print("STOPPING: model used", round(used, 1), "GB (limit", MEMORY_LIMIT_GB, "GB) after", where)
+    used = max(task_used, refiner_used)
+    if task_used > MEMORY_LIMIT_GB or refiner_used > REFINER_MEMORY_LIMIT_GB:
+        print("STOPPING: memory limit. task model", round(task_used, 1), "GB (limit", MEMORY_LIMIT_GB, ") refiner", round(refiner_used, 1), "GB (limit", REFINER_MEMORY_LIMIT_GB, ") after", where)
         write_status("STOPPED (memory limit, results incomplete): " + str(round(used, 1)) + " GB after " + where)
         sys.exit(1)
     return round(used, 2)
@@ -135,12 +148,18 @@ def main():
         trajectory_file = open(trajectory_path, "w")
         results_file = open(os.path.join(seed_dir, "learn_results.jsonl"), "w")
         evolution_file = open(os.path.join(seed_dir, "evolution_log.jsonl"), "w")
+        if args.gate:
+            gate_trajectory = open(os.path.join(seed_dir, "gate_trajectory.jsonl"), "w")
+            gate_results = open(os.path.join(seed_dir, "gate_results.jsonl"), "w")
+        # tasks that ran with the current harness since the last edit: [(task, passed), ...]
+        recent = []
 
         for position in range(len(order)):
             task = order[position]
             start_byte = trajectory_file.tell()
             row = run_one_task(task, state, seed, trajectory_file, results_file, {"position": position, "generation": generation})
             print("learn", position, task["id"], "PASS" if row["success"] else "FAIL", "steps", row["steps"], "gen", generation, row["seconds"], "s")
+            recent.append((task, row["success"]))
 
             previous_step = global_step
             for record in read_steps(trajectory_path, start_byte):
@@ -153,20 +172,48 @@ def main():
             # evolve once (the window would be the same both times).
             if evolution_points_crossed(previous_step, global_step) > 0 and position < len(order) - 1:
                 generation = generation + 1
+                old_state = copy.deepcopy(state)
                 results = evolve(args.refiner_model, state, history, global_step, generation, seed, args.temperature)
                 results["model_memory_gb"] = memory_check("refiner generation " + str(generation))
-                save_state(state_dir, state)
-                shutil.copytree(state_dir, os.path.join(seed_dir, "state_gen_" + str(generation)))
-                evolution_file.write(json.dumps(results, default=str) + "\n")
-                evolution_file.flush()
                 applied = 0
                 for name in ["prompt", "subagents", "skills", "memory"]:
                     applied = applied + len(results[name].get("applied", []))
                 print("  refiner gen", generation, "at step", global_step, "| edits applied:", applied, "| counts:", results["counts"], "|", results["seconds"], "s")
 
+                # Fix B: the gate (skipped when nothing changed)
+                if args.gate and applied > 0:
+                    gate_tasks = recent[-GATE_TASKS:]
+                    old_passes = 0
+                    new_passes = 0
+                    for gate_task, old_success in gate_tasks:
+                        if old_success:
+                            old_passes = old_passes + 1
+                        gate_row = run_one_task(gate_task, state, seed, gate_trajectory, gate_results, {"generation": generation})
+                        if gate_row["success"]:
+                            new_passes = new_passes + 1
+                    accepted = new_passes >= old_passes
+                    results["gate"] = {
+                        "tasks": [t["id"] for t, s in gate_tasks],
+                        "old_passes": old_passes,
+                        "new_passes": new_passes,
+                        "accepted": accepted,
+                    }
+                    if not accepted:
+                        state = old_state
+                    print("  gate:", results["gate"]["tasks"], "old", old_passes, "new", new_passes, "->", "KEEP edits" if accepted else "UNDO edits")
+
+                save_state(state_dir, state)
+                shutil.copytree(state_dir, os.path.join(seed_dir, "state_gen_" + str(generation)))
+                evolution_file.write(json.dumps(results, default=str) + "\n")
+                evolution_file.flush()
+                recent = []
+
         trajectory_file.close()
         results_file.close()
         evolution_file.close()
+        if args.gate:
+            gate_trajectory.close()
+            gate_results.close()
         save_state(state_dir, state)
         shutil.copytree(state_dir, os.path.join(seed_dir, "state_final"))
 

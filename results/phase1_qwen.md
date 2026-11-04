@@ -34,3 +34,22 @@ max 15 steps, temperature 0.7.
 This matches the capability floor the original paper reports: a weak model cannot refine its own
 harness. It is the motivation for Phase 2 (refiner checks: validation gate, stronger refiner,
 structured edits).
+
+## Fix A: gemma4:e4b writes the harness edits, qwen does the tasks (2026-11-05)
+
+Run: `runs/20261105-020938_phase1_qwen3.5-0.8b-mlx_refiner-gemma4-e4b` (same Mac mini, same tasks, 3 seeds).
+RAM: one model loaded at a time; gemma used ~9.5 GB (limit 16 GB), qwen limit 10 GB.
+
+| | C0 baseline | C1 qwen refines | Fix A gemma refines |
+|---|---|---|---|
+| all | 19/60 = 32% (CI 21–44%) | 9/60 = 15% (CI 8–26%) | 13/60 = 22% (CI 13–34%) |
+| train | 15/45 = 33% | 7/45 = 16% | 11/45 = 24% |
+| held-out | 4/15 = 27% | 2/15 = 13% | 2/15 = 13% |
+
+- Per seed: baseline 8, 4, 7; Fix A 4, 3, 6.
+- Paired vs baseline: better 6, worse 12, same 42. Forgetting: 8 of 13.
+- gemma's edits are well formed (3 of 64 passes unparseable vs 13 of 68 for qwen), and qwen used
+  the skills (`run_skill` 45 times vs 3). But the strategy text is still long and generic,
+  prompts are still ~3x the baseline (~42–54k tokens per run), and most runs hit the 15-step limit.
+
+**Result: a better refiner reduces the harm (15% → 22%) but does not reach the baseline (32%).**

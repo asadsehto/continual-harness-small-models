@@ -38,10 +38,15 @@ def write_file(workdir, path, content):
     full_path = inside_workdir(workdir, path)
     if full_path is None:
         return "ERROR: path is outside the task folder"
-    folder = os.path.dirname(full_path)
-    os.makedirs(folder, exist_ok=True)
-    with open(full_path, "w") as f:
-        f.write(content)
+    # A bad path (for example a folder name, or a file where a folder should be) is the
+    # model's mistake: tell it, do not crash the run.
+    try:
+        folder = os.path.dirname(full_path)
+        os.makedirs(folder, exist_ok=True)
+        with open(full_path, "w") as f:
+            f.write(content)
+    except OSError as error:
+        return "ERROR: could not write " + path + ": " + error.strerror
     return "wrote " + str(len(content)) + " characters to " + path
 
 

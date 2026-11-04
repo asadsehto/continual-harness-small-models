@@ -126,6 +126,10 @@ for e in evolutions:
         if "failed_to_parse_response" in part.get("rejected", []) or "error" in part:
             parse_fail = parse_fail + 1
 print("refiner: generations", len(evolutions), "| passes", calls, "| edits applied", total_applied, "| passes with unparseable output or error", parse_fail)
+gated = [e["gate"] for e in evolutions if "gate" in e]
+if gated:
+    kept = sum(1 for g in gated if g["accepted"])
+    print("gate (Fix B): checked", len(gated), "generations | kept", kept, "| undone", len(gated) - kept)
 used = {"run_skill": 0, "call_subagent": 0}
 for name in sorted(os.listdir(phase1_dir)):
     for file_name in ["learn_trajectory.jsonl", "eval_trajectory.jsonl"]:
