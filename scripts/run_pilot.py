@@ -8,10 +8,11 @@
 import argparse
 import json
 import os
+import sys
 import time
 
 from harness.agent import run_agent
-from harness.model import unload, memory_gb
+from harness.model import memory_gb, server_info, set_host, unload
 
 MEMORY_LIMIT_GB = 10
 from tasks.pilot import ALL_TASKS
@@ -23,7 +24,12 @@ parser.add_argument("--tasks", default="fix_fib", help="comma-separated task ids
 parser.add_argument("--seeds", type=int, default=1)
 parser.add_argument("--max-steps", type=int, default=15)
 parser.add_argument("--temperature", type=float, default=0.7)
+parser.add_argument("--host", default="http://127.0.0.1:11434", help="Ollama server URL")
 args = parser.parse_args()
+
+# print progress lines at once (otherwise they sit in a buffer and are lost if the run is killed)
+sys.stdout.reconfigure(line_buffering=True)
+set_host(args.host)
 
 if args.tasks == "all":
     tasks = ALL_TASKS
@@ -36,8 +42,10 @@ else:
 
 run_dir = os.path.join("runs", time.strftime("%Y%m%d-%H%M%S") + "_" + args.model.replace(":", "-"))
 os.makedirs(run_dir)
+config = dict(vars(args))
+config["server"] = server_info(args.model)
 with open(os.path.join(run_dir, "config.json"), "w") as f:
-    json.dump(vars(args), f, indent=2)
+    json.dump(config, f, indent=2)
 
 trajectory_file = open(os.path.join(run_dir, "trajectory.jsonl"), "w")
 results_file = open(os.path.join(run_dir, "results.jsonl"), "w")

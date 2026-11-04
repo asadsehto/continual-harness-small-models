@@ -1,37 +1,15 @@
 # The tools the agent can use. Every tool works inside one task folder (workdir).
-# read_file and write_file refuse paths outside the task folder.
-# run_shell runs inside a macOS sandbox (sandbox-exec). The sandbox:
-#   - blocks writing anywhere except the task folder
-#   - blocks reading file contents under /Users (your home), except the Python install
-#     and this project's .venv, which commands like `python test.py` need
-#   - blocks all network access
-# On timeout the whole process group is killed (so a long `find /` does not keep running).
+#   run_shell, run_skill  run inside the macOS sandbox (see harness/sandbox.py)
+#   read_file, write_file run in our Python process, but refuse paths outside the task folder
+# run_skill and call_subagent exist only in Phase 1 (Continual Harness), and are shown to the
+# model only when the harness has at least one skill / sub-agent.
 
+import json
 import os
-import signal
-import subprocess
+import sys
+import tempfile
 
-MAX_OUTPUT_CHARS = 2000
-SHELL_TIMEOUT_SECONDS = 30
-
-PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-PYTHON_HOME = os.path.realpath(os.path.expanduser("~/.local/share/uv/python"))
-
-SANDBOX_PROFILE = """(version 1)
-(allow default)
-(deny network*)
-(deny file-write*)
-(allow file-write* (subpath "WORKDIR") (literal "/dev/null") (literal "/dev/tty") (subpath "/dev/fd"))
-(deny file-read-data (subpath "/Users"))
-(allow file-read-data (subpath "WORKDIR") (subpath "PYTHON_HOME") (subpath "PROJECT_VENV"))
-"""
-
-
-def sandbox_profile(workdir):
-    profile = SANDBOX_PROFILE.replace("WORKDIR", os.path.realpath(workdir))
-    profile = profile.replace("PYTHON_HOME", PYTHON_HOME)
-    profile = profile.replace("PROJECT_VENV", os.path.join(PROJECT_DIR, ".venv"))
-    return profile
+from harness.sandbox import run_sandboxed, cut
 
 
 def inside_workdir(workdir, path):
@@ -42,35 +20,8 @@ def inside_workdir(workdir, path):
     return None
 
 
-def cut(text):
-    if len(text) > MAX_OUTPUT_CHARS:
-        return text[:MAX_OUTPUT_CHARS] + "\n...[output cut]"
-    return text
-
-
 def run_shell(workdir, cmd):
-    # The agent can delete its own task folder (qwen did: `rm -rf <task folder>`).
-    # Then there is nowhere to run commands, so report it instead of crashing the run.
-    if not os.path.isdir(workdir):
-        return "ERROR: the task folder no longer exists (it was deleted)"
-    process = subprocess.Popen(
-        ["sandbox-exec", "-p", sandbox_profile(workdir), "/bin/sh", "-c", cmd],
-        cwd=workdir,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        start_new_session=True,
-    )
-    try:
-        stdout, stderr = process.communicate(timeout=SHELL_TIMEOUT_SECONDS)
-    except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
-        process.communicate()
-        return "ERROR: command took longer than " + str(SHELL_TIMEOUT_SECONDS) + " seconds"
-    text = "exit code: " + str(process.returncode) + "\n"
-    text = text + "stdout:\n" + stdout + "\n"
-    text = text + "stderr:\n" + stderr
-    return cut(text)
+    return run_sandboxed(workdir, ["/bin/sh", "-c", cmd], [])
 
 
 def read_file(workdir, path):
@@ -79,7 +30,7 @@ def read_file(workdir, path):
         return "ERROR: path is outside the task folder"
     if not os.path.isfile(full_path):
         return "ERROR: file not found: " + path
-    with open(full_path) as f:
+    with open(full_path, errors="replace") as f:
         return cut(f.read())
 
 
@@ -94,55 +45,114 @@ def write_file(workdir, path, content):
     return "wrote " + str(len(content)) + " characters to " + path
 
 
+# Skill code is written by the Refiner (the model). It is inline Python that reads `args`
+# and may set `result`. It is NEVER run inside our process: we write it to a file in a
+# separate temp folder and run that file with Python inside the sandbox, in the task folder.
+SKILL_WRAPPER_TOP = "import json, os, sys, re, math, csv, shutil, glob, subprocess\nargs = json.loads(sys.argv[1])\nresult = None\n"
+SKILL_WRAPPER_BOTTOM = "\nprint('RESULT:', json.dumps(result, default=str))\n"
+
+
+def run_skill(workdir, state, name, skill_args):
+    skill = None
+    for item in state["skills"]:
+        if item["name"] == name:
+            skill = item
+    if skill is None:
+        names = [item["name"] for item in state["skills"]]
+        return "ERROR: no skill named " + name + ". Skills: " + str(names)
+    if not skill.get("code"):
+        return "ERROR: skill " + name + " has no code (it is a description only): " + skill.get("description", "")
+    skill_dir = tempfile.mkdtemp(prefix="skill_")
+    skill_file = os.path.join(skill_dir, "skill.py")
+    with open(skill_file, "w") as f:
+        f.write(SKILL_WRAPPER_TOP + skill["code"] + SKILL_WRAPPER_BOTTOM)
+    try:
+        output = run_sandboxed(workdir, [sys.executable, skill_file, json.dumps(skill_args)], [skill_dir])
+    finally:
+        os.remove(skill_file)
+        os.rmdir(skill_dir)
+    return output
+
+
+def tool_schema(name, description, properties, required):
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": {"type": "object", "properties": properties, "required": required},
+        },
+    }
+
+
 # Tool descriptions sent to the model (JSON schema format that Ollama expects).
-TOOL_SCHEMAS = [
+RUN_SHELL = tool_schema(
+    "run_shell", "Run a shell command in the task folder. Returns exit code, stdout and stderr.",
+    {"cmd": {"type": "string", "description": "The shell command"}}, ["cmd"],
+)
+READ_FILE = tool_schema(
+    "read_file", "Read a text file in the task folder.",
+    {"path": {"type": "string", "description": "File path relative to the task folder"}}, ["path"],
+)
+WRITE_FILE = tool_schema(
+    "write_file", "Write (or overwrite) a text file in the task folder.",
     {
-        "type": "function",
-        "function": {
-            "name": "run_shell",
-            "description": "Run a shell command in the task folder. Returns exit code, stdout and stderr.",
-            "parameters": {
-                "type": "object",
-                "properties": {"cmd": {"type": "string", "description": "The shell command"}},
-                "required": ["cmd"],
-            },
-        },
+        "path": {"type": "string", "description": "File path relative to the task folder"},
+        "content": {"type": "string", "description": "The full file content"},
     },
+    ["path", "content"],
+)
+RUN_SKILL = tool_schema(
+    "run_skill", "Run a saved skill (listed in the system prompt) in the task folder.",
     {
-        "type": "function",
-        "function": {
-            "name": "read_file",
-            "description": "Read a text file in the task folder.",
-            "parameters": {
-                "type": "object",
-                "properties": {"path": {"type": "string", "description": "File path relative to the task folder"}},
-                "required": ["path"],
-            },
-        },
+        "name": {"type": "string", "description": "Skill name"},
+        "args": {"type": "object", "description": "Arguments for the skill (a JSON object)"},
     },
+    ["name"],
+)
+CALL_SUBAGENT = tool_schema(
+    "call_subagent", "Give a sub-task to a saved sub-agent (listed in the system prompt). Returns its final answer.",
     {
-        "type": "function",
-        "function": {
-            "name": "write_file",
-            "description": "Write (or overwrite) a text file in the task folder.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "File path relative to the task folder"},
-                    "content": {"type": "string", "description": "The full file content"},
-                },
-                "required": ["path", "content"],
-            },
-        },
+        "name": {"type": "string", "description": "Sub-agent name"},
+        "task": {"type": "string", "description": "What the sub-agent should do"},
     },
-]
+    ["name", "task"],
+)
+
+TOOL_SCHEMAS = [RUN_SHELL, READ_FILE, WRITE_FILE]
+
+# Tools a sub-agent is allowed to use (it can never call another sub-agent).
+SUBAGENT_ALLOWED_TOOLS = ["run_shell", "read_file", "write_file", "run_skill"]
 
 
-def call_tool(workdir, name, args):
-    if name == "run_shell" and "cmd" in args:
+def schemas_for(state):
+    schemas = [RUN_SHELL, READ_FILE, WRITE_FILE]
+    if state is not None and len(state["skills"]) > 0:
+        schemas.append(RUN_SKILL)
+    if state is not None and len(state["subagents"]) > 0:
+        schemas.append(CALL_SUBAGENT)
+    return schemas
+
+
+def is_text(value):
+    return isinstance(value, str)
+
+
+# run_subagent is passed in by agent.py (it needs the agent loop, which lives there).
+def call_tool(workdir, name, args, state=None, run_subagent=None):
+    if not isinstance(args, dict):
+        return "ERROR: unknown tool or missing arguments: " + str(name) + " " + str(args)
+    if name == "run_shell" and is_text(args.get("cmd")):
         return run_shell(workdir, args["cmd"])
-    if name == "read_file" and "path" in args:
+    if name == "read_file" and is_text(args.get("path")):
         return read_file(workdir, args["path"])
-    if name == "write_file" and "path" in args and "content" in args:
+    if name == "write_file" and is_text(args.get("path")) and is_text(args.get("content")):
         return write_file(workdir, args["path"], args["content"])
-    return "ERROR: unknown tool or missing arguments: " + name + " " + str(args)
+    if name == "run_skill" and state is not None and is_text(args.get("name")):
+        skill_args = args.get("args", {})
+        if not isinstance(skill_args, dict):
+            skill_args = {"value": skill_args}
+        return run_skill(workdir, state, args["name"], skill_args)
+    if name == "call_subagent" and run_subagent is not None and is_text(args.get("name")) and is_text(args.get("task")):
+        return run_subagent(args["name"], args["task"])
+    return "ERROR: unknown tool or missing arguments: " + str(name) + " " + str(args)

@@ -31,3 +31,28 @@ It is also tied to Pokémon emulators. So we re-implement the same design for ou
 - Our stores will be JSON files at first (same as theirs), then a SQLite memory database as a technique.
 - "Step" counts across tasks, so evolution can happen between tasks.
 - Our added techniques target the weak points above: same-model refining, no edit gate, raw error text.
+
+## Our port (Phase 1, condition C1) — `harness/refiner.py`, `harness/state.py`, `scripts/run_phase1.py`
+
+Kept the same as the original:
+- Schedule: warmup 25 steps, then every 25 steps up to 200, then every 100.
+- Window: last 25 steps (prompt, sub-agents, skills), last 20 steps (memory).
+- Four passes in order, each in its own try/except. Same model does tasks and refining.
+- Prompt pass returns the whole strategy as markdown; other passes return JSON, parsed the same way
+  (strip fences, json.loads, else first `{...}` block). Pass prompts are the original texts with game words
+  replaced by task words.
+- Fixed system prompt + editable strategy ("base prompt"). Every edit is kept (no acceptance test).
+- Sub-agent tools filtered to an allowlist; max_turns capped (original cap 50, ours 8).
+
+Changed for our setting:
+- Edits happen between tasks (steps are counted across tasks; if a task passes an evolution point, the Refiner runs after it).
+- The trajectory shows each task's result (PASS/FAIL), standing in for game progress in the original.
+- Skill code runs as a Python file inside the sandbox in the task folder (no game `tools[...]` API).
+- Skill code is kept when a skill is added (the original's add pass does not save `code`; only update does).
+- Sub-agent fields reduced (no handler_type/directive/return_condition).
+- The agent does not get process_memory / run_code tools: memory is shown in the system prompt,
+  and run_shell already runs code. run_skill and call_subagent appear only once the harness has skills / sub-agents,
+  so before the first edit the C1 agent is exactly the C0 baseline agent.
+- Caps: strategy 4,000 chars; 20 memory entries (500 chars each); 10 skills (3,000 chars of code); 5 sub-agents.
+- Safety and RAM: sandbox for run_shell and run_skill; Refiner has no tools and only returns text;
+  model unloaded after every task and Refiner generation; run stops above 10 GB; num_ctx fixed at 32768 (same as baseline).
