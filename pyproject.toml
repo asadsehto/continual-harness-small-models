@@ -1,0 +1,11 @@
+[project]
+name = "continual-harness-small-models"
+version = "0.1.0"
+description = "Making Continual Harness self-improvement work for small local models (Ollama)"
+authors = [
+    { name = "asad saleem", email = "156583018+asadsehto@users.noreply.github.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "ollama>=0.6.3",
+]
