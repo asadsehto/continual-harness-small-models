@@ -11,6 +11,9 @@ import os
 import time
 
 from harness.agent import run_agent
+from harness.model import unload, memory_gb
+
+MEMORY_LIMIT_GB = 10
 from tasks.pilot import ALL_TASKS
 from tasks.task import make_workdir, remove_workdir
 
@@ -49,8 +52,20 @@ for seed in range(args.seeds):
             args.model, task["instruction"], workdir, args.max_steps,
             seed, args.temperature, trajectory_file, task["id"],
         )
-        success = task["check"](workdir, task)
+        # If the agent deleted its own task folder, the task failed (checkers expect the folder).
+        if os.path.isdir(workdir):
+            success = task["check"](workdir, task)
+        else:
+            success = False
+            summary["deleted_task_folder"] = True
         remove_workdir(workdir)
+
+        # Memory guard: record how much memory the model used, then unload it.
+        peak_gb = memory_gb(args.model)
+        summary["model_memory_gb"] = round(peak_gb, 2)
+        unload(args.model)
+        if peak_gb > MEMORY_LIMIT_GB:
+            print("WARNING: model used", round(peak_gb, 1), "GB (limit", MEMORY_LIMIT_GB, "GB) on task", task["id"])
 
         total = total + 1
         if success:

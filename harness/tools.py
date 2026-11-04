@@ -1,13 +1,37 @@
 # The tools the agent can use. Every tool works inside one task folder (workdir).
 # read_file and write_file refuse paths outside the task folder.
-# run_shell starts in the task folder. It is NOT a full sandbox (a command like "cd /" can
-# still leave), so only run the agent on pilot tasks, never on folders with real data.
+# run_shell runs inside a macOS sandbox (sandbox-exec). The sandbox:
+#   - blocks writing anywhere except the task folder
+#   - blocks reading file contents under /Users (your home), except the Python install
+#     and this project's .venv, which commands like `python test.py` need
+#   - blocks all network access
+# On timeout the whole process group is killed (so a long `find /` does not keep running).
 
 import os
+import signal
 import subprocess
 
 MAX_OUTPUT_CHARS = 2000
 SHELL_TIMEOUT_SECONDS = 30
+
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+PYTHON_HOME = os.path.realpath(os.path.expanduser("~/.local/share/uv/python"))
+
+SANDBOX_PROFILE = """(version 1)
+(allow default)
+(deny network*)
+(deny file-write*)
+(allow file-write* (subpath "WORKDIR") (literal "/dev/null") (literal "/dev/tty") (subpath "/dev/fd"))
+(deny file-read-data (subpath "/Users"))
+(allow file-read-data (subpath "WORKDIR") (subpath "PYTHON_HOME") (subpath "PROJECT_VENV"))
+"""
+
+
+def sandbox_profile(workdir):
+    profile = SANDBOX_PROFILE.replace("WORKDIR", os.path.realpath(workdir))
+    profile = profile.replace("PYTHON_HOME", PYTHON_HOME)
+    profile = profile.replace("PROJECT_VENV", os.path.join(PROJECT_DIR, ".venv"))
+    return profile
 
 
 def inside_workdir(workdir, path):
@@ -25,20 +49,27 @@ def cut(text):
 
 
 def run_shell(workdir, cmd):
+    # The agent can delete its own task folder (qwen did: `rm -rf <task folder>`).
+    # Then there is nowhere to run commands, so report it instead of crashing the run.
+    if not os.path.isdir(workdir):
+        return "ERROR: the task folder no longer exists (it was deleted)"
+    process = subprocess.Popen(
+        ["sandbox-exec", "-p", sandbox_profile(workdir), "/bin/sh", "-c", cmd],
+        cwd=workdir,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
     try:
-        result = subprocess.run(
-            cmd,
-            shell=True,
-            cwd=workdir,
-            capture_output=True,
-            text=True,
-            timeout=SHELL_TIMEOUT_SECONDS,
-        )
+        stdout, stderr = process.communicate(timeout=SHELL_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.communicate()
         return "ERROR: command took longer than " + str(SHELL_TIMEOUT_SECONDS) + " seconds"
-    text = "exit code: " + str(result.returncode) + "\n"
-    text = text + "stdout:\n" + result.stdout + "\n"
-    text = text + "stderr:\n" + result.stderr
+    text = "exit code: " + str(process.returncode) + "\n"
+    text = text + "stdout:\n" + stdout + "\n"
+    text = text + "stderr:\n" + stderr
     return cut(text)
 
 
