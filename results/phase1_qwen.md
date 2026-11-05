@@ -37,7 +37,7 @@ structured edits).
 
 ## Fix A: gemma4:e4b writes the harness edits, qwen does the tasks (2026-11-05)
 
-Run: `runs/20261105-020938_phase1_qwen3.5-0.8b-mlx_refiner-gemma4-e4b` (same Mac mini, same tasks, 3 seeds).
+Run: `runs/20261105-020938_phase1_qwen3.5-0.8b-mlx_refiner-gemma4-e4b` (same Ollama server, same tasks, 3 seeds).
 RAM: one model loaded at a time; gemma used ~9.5 GB (limit 16 GB), qwen limit 10 GB.
 
 | | C0 baseline | C1 qwen refines | Fix A gemma refines |

@@ -9,6 +9,11 @@
 #   evolution_log.jsonl                            every Refiner pass: response, applied edits (before/after), rejected edits
 #   eval_trajectory.jsonl, eval_results.jsonl      evaluation phase (same format as Phase 0 results.jsonl)
 #   gate_trajectory.jsonl, gate_results.jsonl      only with --gate (Fix B): the gate's test runs
+# Technique #3 (--memory-db): memory is a database of up to MAX_DB_ENTRIES entries; each task's
+# prompt gets only the TOP_K entries most similar to its instruction (harness/memory_db.py).
+# Technique #4 (--verified-skills): a new or rewritten skill is run once on a fresh copy of the most
+# recent train task's folder; it is kept only if it runs without error and returns a result.
+# Technique #5 (--structured-errors): failed tool calls return a typed error with a fixed hint.
 # Fix B (--gate): after the Refiner edits the harness, rerun the train tasks that ran with the
 # old harness since the last edit (at most GATE_TASKS of them), same seed, with the new harness.
 # Keep the edits only if the new harness passes at least as many; otherwise go back to the old one.
@@ -27,18 +32,24 @@ import time
 
 from harness.agent import run_agent
 from harness.model import ModelError, memory_gb, server_info, set_host, unload
+from harness.memory_db import EMBED_MODEL, MAX_DB_ENTRIES, TOP_K, retrieve
 from harness.refiner import evolution_points_crossed, evolve
+from harness.state import MAX_MEMORY_ENTRIES
+from harness.tools import run_skill_code
 from harness.state import create_state, load_state, save_state
 from tasks.pilot import ALL_TASKS
 from tasks.task import make_workdir, remove_workdir
 
 MEMORY_LIMIT_GB = 10           # task model (qwen)
-REFINER_MEMORY_LIMIT_GB = 16   # refiner model (e.g. gemma4:e4b); Mac mini has 24 GB
+REFINER_MEMORY_LIMIT_GB = 16   # refiner model (e.g. gemma4:e4b)
 GATE_TASKS = 3                 # Fix B: how many recent train tasks the gate reruns
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", default="qwen3.5:0.8b-mlx")
 parser.add_argument("--refiner-model", default=None, help="model that writes harness edits (Fix A); default: same as --model")
+parser.add_argument("--memory-db", action="store_true", help="technique #3: memory database with retrieval of the most relevant entries")
+parser.add_argument("--verified-skills", action="store_true", help="technique #4: keep a skill only if its code runs without error")
+parser.add_argument("--structured-errors", action="store_true", help="technique #5: failed tool calls return a typed error with a hint")
 parser.add_argument("--gate", action="store_true", help="Fix B: keep Refiner edits only if they do not lower the pass count on recent train tasks")
 parser.add_argument("--seeds", type=int, default=3)
 parser.add_argument("--first-seed", type=int, default=0)
@@ -66,11 +77,19 @@ if args.refiner_model != args.model:
     run_name = run_name + "_refiner-" + args.refiner_model.replace(":", "-")
 if args.gate:
     run_name = run_name + "_gate"
+if args.memory_db:
+    run_name = run_name + "_memdb"
+if args.verified_skills:
+    run_name = run_name + "_verified"
+if args.structured_errors:
+    run_name = run_name + "_errors"
 run_dir = os.path.join("runs", run_name)
 os.makedirs(run_dir)
 config = dict(vars(args))
 config["server"] = server_info(args.model)
 config["refiner_server"] = server_info(args.refiner_model)
+if args.memory_db:
+    config["memory_db"] = {"embed_model": EMBED_MODEL, "top_k": TOP_K, "max_entries": MAX_DB_ENTRIES, "embed_server": server_info(EMBED_MODEL)}
 config["started"] = time.strftime("%Y-%m-%d %H:%M:%S")
 with open(os.path.join(run_dir, "config.json"), "w") as f:
     json.dump(config, f, indent=2)
@@ -94,11 +113,18 @@ def memory_check(where):
 
 
 def run_one_task(task, state, seed, trajectory_file, results_file, extra):
+    memory_used = None
+    if args.memory_db:
+        # the agent sees only the entries most relevant to this task
+        task_state = dict(state)
+        task_state["memory"] = retrieve(state["memory"], task["instruction"])
+        memory_used = [entry["id"] for entry in task_state["memory"]]
+        state = task_state
     workdir = make_workdir(task)
     try:
         summary = run_agent(
             args.model, task["instruction"], workdir, args.max_steps,
-            seed, args.temperature, trajectory_file, task["id"], state,
+            seed, args.temperature, trajectory_file, task["id"], state, args.structured_errors,
         )
     except ModelError:
         remove_workdir(workdir)
@@ -114,9 +140,28 @@ def run_one_task(task, state, seed, trajectory_file, results_file, extra):
     row = {"task_id": task["id"], "split": task["split"], "seed": seed, "success": success}
     row.update(extra)
     row.update(summary)
+    if memory_used is not None:
+        row["memory_used"] = memory_used
     results_file.write(json.dumps(row) + "\n")
     results_file.flush()
     return row
+
+
+def make_skill_verifier(task):
+    # Technique #4: test skill code on a fresh copy of `task`'s starting folder.
+    def verify(code, test_args):
+        if not code.strip():
+            return False, "no code"
+        if not isinstance(test_args, dict):
+            test_args = {}
+        workdir = make_workdir(task)
+        try:
+            output = run_skill_code(workdir, code, test_args)
+        finally:
+            remove_workdir(workdir)
+        passed = output.startswith("exit code: 0") and "RESULT:" in output and "RESULT: null" not in output
+        return passed, output
+    return verify
 
 
 def read_steps(path, start_byte):
@@ -173,7 +218,9 @@ def main():
             if evolution_points_crossed(previous_step, global_step) > 0 and position < len(order) - 1:
                 generation = generation + 1
                 old_state = copy.deepcopy(state)
-                results = evolve(args.refiner_model, state, history, global_step, generation, seed, args.temperature)
+                memory_cap = MAX_DB_ENTRIES if args.memory_db else MAX_MEMORY_ENTRIES
+                verify_skill = make_skill_verifier(task) if args.verified_skills else None
+                results = evolve(args.refiner_model, state, history, global_step, generation, seed, args.temperature, memory_cap, verify_skill)
                 results["model_memory_gb"] = memory_check("refiner generation " + str(generation))
                 applied = 0
                 for name in ["prompt", "subagents", "skills", "memory"]:

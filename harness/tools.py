@@ -67,12 +67,17 @@ def run_skill(workdir, state, name, skill_args):
         return "ERROR: no skill named " + name + ". Skills: " + str(names)
     if not skill.get("code"):
         return "ERROR: skill " + name + " has no code (it is a description only): " + skill.get("description", "")
+    return run_skill_code(workdir, skill["code"], skill_args)
+
+
+# Runs skill code in the sandbox. Also used by technique #4 to test a new skill before keeping it.
+def run_skill_code(workdir, code, skill_args):
     skill_dir = tempfile.mkdtemp(prefix="skill_")
     skill_file = os.path.join(skill_dir, "skill.py")
     with open(skill_file, "w") as f:
-        f.write(SKILL_WRAPPER_TOP + skill["code"] + SKILL_WRAPPER_BOTTOM)
+        f.write(SKILL_WRAPPER_TOP + code + SKILL_WRAPPER_BOTTOM)
     try:
-        output = run_sandboxed(workdir, [sys.executable, skill_file, json.dumps(skill_args)], [skill_dir])
+        output = run_sandboxed(workdir, [sys.executable, skill_file, json.dumps(skill_args, default=str)], [skill_dir])
     finally:
         os.remove(skill_file)
         os.rmdir(skill_dir)

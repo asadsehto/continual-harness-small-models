@@ -62,6 +62,15 @@ def chat(model, messages, tools, seed, temperature):
     return response.message, stats
 
 
+# Embedding vectors for a list of texts (used by the memory database, technique #3).
+def embed(model, texts):
+    try:
+        response = client.embed(model=model, input=texts)
+    except Exception as error:
+        raise ModelError("embed failed on " + host + ": " + repr(error)[:300])
+    return response.embeddings
+
+
 # Removes the model from memory. Called after every task, because Ollama's MLX runner
 # keeps growing its memory cache across tasks (seen: qwen3.5:0.8b-mlx grew 5 GB -> 10 GB).
 def unload(model):

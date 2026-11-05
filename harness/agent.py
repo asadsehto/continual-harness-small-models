@@ -10,6 +10,7 @@
 import json
 import time
 
+from harness.errors import structure
 from harness.model import chat
 from harness.state import build_system_prompt
 from harness.tools import SUBAGENT_ALLOWED_TOOLS, call_tool, schemas_for
@@ -20,7 +21,7 @@ Do the task step by step. Check your work (for example run the tests) before you
 When the task is complete, reply with a short message and no tool call."""
 
 
-def run_subagent_loop(model, sub, task_text, workdir, seed, temperature, state):
+def run_subagent_loop(model, sub, task_text, workdir, seed, temperature, state, structured_errors=False):
     # A sub-agent is a smaller agent loop with its own instructions and an allowed tool list.
     messages = [
         {"role": "system", "content": sub["system_instructions"] + "\nWhen done, reply with a short answer and no tool call."},
@@ -43,12 +44,15 @@ def run_subagent_loop(model, sub, task_text, workdir, seed, temperature, state):
                 result = "ERROR: tool not allowed for this sub-agent: " + str(name)
             else:
                 result = call_tool(workdir, name, call.function.arguments, state, None)
+            if structured_errors:
+                result = structure(result)
             messages.append({"role": "tool", "tool_name": name, "content": result})
             calls.append(name)
     return "sub-agent " + sub["name"] + " stopped after " + str(sub["max_turns"]) + " turns without answering. tool calls: " + str(calls)[:1000]
 
 
-def run_agent(model, instruction, workdir, max_steps, seed, temperature, log_file, task_id, state=None):
+# structured_errors=True -> technique #5: failed tool calls return a typed error with a hint (harness/errors.py)
+def run_agent(model, instruction, workdir, max_steps, seed, temperature, log_file, task_id, state=None, structured_errors=False):
     if state is None:
         system_prompt = SYSTEM_PROMPT
     else:
@@ -58,7 +62,7 @@ def run_agent(model, instruction, workdir, max_steps, seed, temperature, log_fil
     def run_subagent(name, task_text):
         for sub in state["subagents"]:
             if sub["name"] == name:
-                return run_subagent_loop(model, sub, task_text, workdir, seed, temperature, state)
+                return run_subagent_loop(model, sub, task_text, workdir, seed, temperature, state, structured_errors)
         names = [sub["name"] for sub in state["subagents"]]
         return "ERROR: no sub-agent named " + name + ". Sub-agents: " + str(names)
 
@@ -82,6 +86,7 @@ def run_agent(model, instruction, workdir, max_steps, seed, temperature, log_fil
         total_output_tokens = total_output_tokens + (stats["output_tokens"] or 0)
         if stats["cut_at_max_tokens"]:
             cut_replies = cut_replies + 1
+
         messages.append(message)
 
         tool_calls = []
@@ -95,6 +100,8 @@ def run_agent(model, instruction, workdir, max_steps, seed, temperature, log_fil
                     result = call_tool(workdir, name, args, state, run_subagent)
                 if result.startswith("ERROR: unknown tool"):
                     format_errors = format_errors + 1
+                if structured_errors:
+                    result = structure(result)
                 messages.append({"role": "tool", "tool_name": name, "content": result})
                 tool_calls.append({"name": name, "args": args, "result": result})
 

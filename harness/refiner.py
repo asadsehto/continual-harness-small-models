@@ -307,7 +307,7 @@ Available tools the sub-agent can use: """ + str(SUBAGENT_ALLOWED_TOOLS) + "\n"
 
 # ---------------- pass 3: skills (port of _evolve_skills) ----------------
 
-def evolve_skills(model, state, steps, seed, temperature):
+def evolve_skills(model, state, steps, seed, temperature, verify_skill=None):
     overview = json.dumps(state["skills"], indent=1) if state["skills"] else "(none yet)"
     inline_code_calls = 0
     run_skill_calls = 0
@@ -321,6 +321,16 @@ def evolve_skills(model, state, steps, seed, temperature):
     if inline_code_calls >= 3 and run_skill_calls == 0:
         warning = "\n## CRITICAL ANTIPATTERN DETECTED\nThe agent ran inline Python " + str(inline_code_calls) + " times but run_skill 0 times. It is writing disposable scripts instead of reusable skills. You MUST create executable skills from these patterns.\n"
 
+    verify_note = ""
+    if verify_skill is not None:
+        verify_note = """
+## Skill Verification (technique #4)
+
+Every new or rewritten skill is TESTED before it is kept: its code is run once on a fresh copy of the
+most recent task folder, with `test_args` as `args`. The skill is kept only if it runs without an error
+and sets `result` (not None). Skills without code are not kept. Give `test_args` for every skill you add
+or rewrite (an object; use {} if the skill needs no arguments).
+"""
     prompt = """You are a harness evolution system analyzing an AI agent's recent work on computer tasks (coding, files, shell) inside a task folder.
 
 Your job: identify reusable behavioral patterns (skills) from successful actions and evaluate existing skills.
@@ -340,7 +350,7 @@ Skill code runs as inline Python (NOT a function definition), with the task fold
 - `result` — set this variable to return data
 - Modules already imported: json, os, sys, re, math, csv, shutil, glob, subprocess
 Do NOT write `def skill_name():` — write inline code that reads `args` and sets `result`.
-
+""" + verify_note + """
 ## Analysis Tasks
 
 1. **Identify underperforming skills**: find skills that failed or errored; recommend a rewrite with full replacement `code`.
@@ -388,6 +398,11 @@ Respond with ONLY a JSON object (no markdown fences):
         if name in [skill["name"] for skill in state["skills"]]:
             log["rejected"].append({"add": name, "reason": "name already exists"})
             continue
+        if verify_skill is not None:
+            passed, output = verify_skill(code or "", spec.get("test_args"))
+            if not passed:
+                log["rejected"].append({"add": name, "reason": "failed verification", "test_output": output[:500]})
+                continue
         entry = {
             "id": next_id(state["skills"], "skill_"),
             "name": name,
@@ -415,6 +430,11 @@ Respond with ONLY a JSON object (no markdown fences):
         if description:
             target["description"] = description
         code = short_text(upd.get("code"), MAX_SKILL_CODE_CHARS)
+        if code and verify_skill is not None:
+            passed, output = verify_skill(code, upd.get("test_args"))
+            if not passed:
+                log["rejected"].append({"update": target["id"], "reason": "new code failed verification", "test_output": output[:500]})
+                code = None
         if code:
             target["code"] = code
         if before != target:
@@ -424,7 +444,7 @@ Respond with ONLY a JSON object (no markdown fences):
 
 # ---------------- pass 4: memory (port of _evolve_memory) ----------------
 
-def evolve_memory(model, state, steps, seed, temperature):
+def evolve_memory(model, state, steps, seed, temperature, max_entries=MAX_MEMORY_ENTRIES):
     overview = json.dumps(state["memory"], indent=1) if state["memory"] else "(empty)"
     prompt = """You are a memory curator for an AI agent that does computer tasks (coding, files, shell) inside a task folder.
 
@@ -470,8 +490,8 @@ Respond with ONLY a JSON object (no markdown fences):
         if title is None or content is None:
             log["rejected"].append({"add": str(spec)[:300], "reason": "missing or too long title/content"})
             continue
-        if len(state["memory"]) >= MAX_MEMORY_ENTRIES:
-            log["rejected"].append({"add": title, "reason": "cap of " + str(MAX_MEMORY_ENTRIES) + " entries reached"})
+        if len(state["memory"]) >= max_entries:
+            log["rejected"].append({"add": title, "reason": "cap of " + str(max_entries) + " entries reached"})
             continue
         importance = spec.get("importance", 3)
         if not isinstance(importance, int) or importance < 1 or importance > 5:
@@ -518,7 +538,7 @@ def last_steps(history, count):
     return chosen
 
 
-def evolve(model, state, history, current_step, generation, seed, temperature):
+def evolve(model, state, history, current_step, generation, seed, temperature, memory_cap=MAX_MEMORY_ENTRIES, verify_skill=None):
     window = last_steps(history, WINDOW_STEPS)
     memory_window = last_steps(history, MEMORY_WINDOW_STEPS)
     start = time.time()
@@ -531,7 +551,12 @@ def evolve(model, state, history, current_step, generation, seed, temperature):
     ]
     for name, function, steps in passes:
         try:
-            results[name] = function(model, state, steps, seed, temperature)
+            if name == "memory":
+                results[name] = function(model, state, steps, seed, temperature, memory_cap)
+            elif name == "skills":
+                results[name] = function(model, state, steps, seed, temperature, verify_skill)
+            else:
+                results[name] = function(model, state, steps, seed, temperature)
         except ModelError:
             # server or connection problem: stop the run, do not log it as a bad Refiner pass
             raise
