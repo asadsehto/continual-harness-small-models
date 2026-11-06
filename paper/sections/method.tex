@@ -1,0 +1,130 @@
+\section{Method}
+\label{sec:method}
+
+We first describe the agent and its editable harness (\S\ref{sec:agent}), then our port of the
+Continual Harness refiner to local models (\S\ref{sec:refiner}), the five techniques we add on top
+of it (\S\ref{sec:techniques}), and the baselines (\S\ref{sec:baselines}).
+
+\subsection{Agent and Harness}
+\label{sec:agent}
+
+\paragraph{Agent loop.}
+The agent is a standard tool-calling loop in the style of ReAct~\cite{yao2023react}. At each step
+the model receives the conversation so far and either calls one or more tools or replies without a
+tool call, which ends the task. A task also ends after a maximum of 15 steps. The model has three
+base tools: \texttt{run\_shell} (run a shell command in the task folder), \texttt{read\_file} and
+\texttt{write\_file}. Every task runs in its own fresh temporary folder. Shell commands and skill code
+run inside an operating-system sandbox that allows writing only inside the task folder, blocks
+reading the user's files, has no network access, and stops any command after 30 seconds.
+
+\paragraph{Harness.}
+Following Continual Harness~\cite{karten2026continual}, the \emph{harness} is everything around the
+model weights that shapes its behaviour, and it has four editable parts:
+\begin{itemize}
+  \item \textbf{Strategy}: a free-text ``base prompt'' added to a fixed system prompt. The fixed
+        part (tools and hard rules) is never edited. The initial strategy is one sentence:
+        \emph{``Do the task step by step. Check your work (for example run the tests) before you finish.''}
+  \item \textbf{Memory}: a list of entries (title, content, importance from 1 to 5) shown in the
+        system prompt.
+  \item \textbf{Skills}: named pieces of Python code that the agent can run with a
+        \texttt{run\_skill} tool. The code runs in the task folder, inside the sandbox.
+  \item \textbf{Sub-agents}: named helper agents, each with its own instructions, an allowed list
+        of tools and a turn limit, that the agent can call with a \texttt{call\_subagent} tool.
+\end{itemize}
+The \texttt{run\_skill} and \texttt{call\_subagent} tools are only offered once the harness contains
+at least one skill or sub-agent. As a result, before the first edit, the self-improving agent is
+exactly the static baseline agent. To keep prompt size, memory use and run time bounded on small
+hardware, every part has a size cap: strategy 4{,}000 characters; 20 memory entries of up to 500
+characters; 10 skills of up to 3{,}000 characters of code; 5 sub-agents with at most 8 turns each.
+
+\subsection{Continual Harness Refiner (C1)}
+\label{sec:refiner}
+
+The original Continual Harness code supports only cloud model APIs and is tied to game emulators,
+so we re-implemented its refiner (\texttt{HarnessEvolver}) for local models served by
+Ollama~\cite{ollama} and for our tasks, keeping its design as close as possible.
+
+\paragraph{What we keep.}
+\begin{itemize}
+  \item \textbf{Schedule.} No edits before step 25 (warm-up); then an edit every 25 steps up to
+        step 200, and every 100 steps after that. Steps are counted across tasks.
+  \item \textbf{Window.} The refiner reads the last 25 steps of the agent's trajectory (the last 20
+        for the memory pass).
+  \item \textbf{Four passes,} run in order, each in its own error handler so that one failing pass
+        does not stop the others: (1) rewrite the strategy; (2) create, update or retire sub-agents;
+        (3) add or update skills; (4) add or update memory entries. The strategy pass returns
+        markdown; the other passes return JSON, parsed the same way as in the original.
+  \item \textbf{Same model.} The model that does the tasks also writes the edits.
+  \item \textbf{No acceptance test.} Every edit is kept.
+\end{itemize}
+
+\paragraph{What we change.}
+\begin{itemize}
+  \item Edits happen \emph{between} tasks: if a task crosses one of the scheduled step counts, the
+        refiner runs after that task ends.
+  \item The trajectory shown to the refiner marks the end of each task with its result (PASS or
+        FAIL). This replaces game progress, which the original refiner sees.
+  \item Prompts use task words instead of game words, skill code runs as a Python file in the
+        sandbox instead of calling a game API, and sub-agents have fewer fields.
+  \item A skill's code is saved when the skill is added (the original saves code only on update).
+  \item The size caps above, and full logging of every edit (before and after).
+\end{itemize}
+We call this port, with nothing added, condition \textbf{C1}.
+
+\subsection{Added Techniques (C2--C6)}
+\label{sec:techniques}
+
+Each technique targets a weakness of C1 that we expect to matter most for small models. We test
+each one alone on top of C1, and all of them together (C8).
+
+\paragraph{Separate refiner.}
+A larger local model writes the edits while the small model still does the tasks. This tests
+whether the bottleneck is the quality of the edits. For both workers we use
+\texttt{gemma4:e4b} as the refiner.
+
+\paragraph{Regression gate.}
+After the refiner edits the harness, the gate reruns the most recent train tasks that ran with the
+old harness since the last edit (at most 3), with the same seeds, using the new harness. The edits
+are kept only if the new harness passes at least as many of these tasks as the old one did;
+otherwise the harness is reset to its state before the edit. This is the gated-edit idea of
+Self-Harness~\cite{zhang2026selfharness}, scaled down to a small task budget.
+
+\paragraph{Memory database.}
+In C1, every memory entry goes into every prompt, and memory is capped at 20 entries. With the
+memory database, the refiner can store up to 200 entries, and at the start of each task only the 5
+entries most similar to the task instruction are put into the prompt. Similarity is the cosine
+similarity of \texttt{nomic-embed-text} embeddings~\cite{nussbaum2024nomic}.
+
+\paragraph{Verified skills.}
+In C1, any skill the refiner writes is kept. With verified skills, every new or rewritten skill is
+first run once on a fresh copy of the folder of the most recent train task, and it is kept only if
+it runs without an error and returns a result. This is a weaker form of the code verification used
+by skill-library agents such as Voyager~\cite{wang2023voyager}.
+
+\paragraph{Structured errors.}
+In C1, a failed tool call returns the raw output (exit code, standard output and standard error).
+With structured errors, a failed call returns a short header before the raw output: one of 14 fixed
+error types (for example \texttt{file\_not\_found}, \texttt{syntax\_error},
+\texttt{test\_failed}), the key line of the message (for example the last line of a Python
+traceback), and a fixed, general hint for that type. Hints never mention a specific task.
+Successful calls are unchanged.
+
+\paragraph{Full system (C8).}
+C1 with all five techniques together.
+
+\subsection{Baselines}
+\label{sec:baselines}
+
+\paragraph{Static harness (C0).}
+The same agent, tools and sandbox with a fixed system prompt and no learning. This is the main
+reference point: a self-improving harness is only useful if it beats C0.
+
+\paragraph{Reflexion-style memory.}
+Following Reflexion~\cite{shinn2023reflexion}, adapted to a sequence of different tasks: after each
+\emph{failed} train task, the same model reads the task and its own steps and writes a short
+self-reflection (up to 500 characters) that diagnoses the failure and gives a plan for similar
+tasks. The last 3 reflections are shown as memory in the system prompt. The strategy, skills and
+sub-agents never change.
+
+\paragraph{Gated edits.}
+The regression gate condition above serves as our Self-Harness-style baseline.

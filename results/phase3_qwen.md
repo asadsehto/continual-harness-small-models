@@ -6,9 +6,9 @@ Eval uses the frozen final harness. Same setup as Phase 1 and Phase 2.
 
 - **C8** = C1 + all five techniques together: separate refiner (gemma4:e4b), regression gate,
   memory database, verified skills, structured errors.
-- **Reflexion** = static harness (C0) + Reflexion-style memory: after each learning task the
-  worker writes a short reflection (up to 500 characters); the last 3 reflections are added
-  to the prompt of the next task. No harness edits.
+- **Reflexion** = static harness (C0) + Reflexion-style memory: after each FAILED learning task
+  the worker writes a short reflection (up to 500 characters); the last 3 reflections are added
+  to the prompt of the next tasks. No harness edits.
 - The Self-Harness-style gated-edits baseline is the regression gate condition from Phase 2.
 
 ## Main numbers (all conditions)
