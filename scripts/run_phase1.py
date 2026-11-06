@@ -33,7 +33,7 @@ import sys
 import time
 
 from harness.agent import run_agent
-from harness.model import ModelError, memory_gb, server_info, set_host, unload
+from harness.model import ModelError, memory_gb, server_info, set_host, set_model_host, unload
 from harness.memory_db import EMBED_MODEL, MAX_DB_ENTRIES, TOP_K, retrieve
 from harness.refiner import evolution_points_crossed, evolve
 from harness.reflexion import add_reflection, reflect
@@ -62,6 +62,8 @@ parser.add_argument("--temperature", type=float, default=0.7)
 parser.add_argument("--train-tasks", default="all", help="comma-separated ids (for smoke tests), or 'all'")
 parser.add_argument("--skip-eval", action="store_true")
 parser.add_argument("--host", default="http://127.0.0.1:11434", help="Ollama server URL")
+parser.add_argument("--refiner-host", default=None, help="Ollama server for the refiner model; default: --host")
+parser.add_argument("--embed-host", default=None, help="Ollama server for the embedding model; default: --host")
 args = parser.parse_args()
 
 # print progress lines at once (otherwise they sit in a buffer and are lost if the run is killed)
@@ -69,6 +71,10 @@ sys.stdout.reconfigure(line_buffering=True)
 set_host(args.host)
 if args.refiner_model is None:
     args.refiner_model = args.model
+if args.refiner_host is not None and args.refiner_model != args.model:
+    set_model_host(args.refiner_model, args.refiner_host)
+if args.embed_host is not None:
+    set_model_host(EMBED_MODEL, args.embed_host)
 
 train_tasks = []
 for task in ALL_TASKS:
