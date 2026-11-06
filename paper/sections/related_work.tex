@@ -1,3 +1,52 @@
 \section{Related Work}
 \label{sec:related}
-\todo{Continual Harness, Self-Harness, Reflexion, Voyager-style skill libraries, ReAct agents, small-model agents}
+
+\paragraph{Tool-using language-model agents.}
+ReAct~\cite{yao2023react} showed that a model can solve tasks by mixing reasoning with actions
+(tool calls) and reading the results. This loop is now the standard design of coding and computer
+agents. SWE-agent~\cite{yang2024sweagent} showed that the \emph{interface} between the agent and
+the computer matters a lot: simple commands and clear feedback improve results with the same model.
+Our structured-error technique follows this idea for small models.
+
+\paragraph{Self-improving harnesses.}
+Continual Harness~\cite{karten2026continual} is the method we build on. During one long run, a
+refiner rewrites the agent's prompt, sub-agents, skills and memory every few steps, without resets.
+It was tested on long games with large frontier models; the authors note a capability floor below
+which models do not benefit. Self-Harness~\cite{zhang2026selfharness} lets an agent propose edits
+to its own harness and accepts them only after a regression test; it reports large gains on a
+terminal benchmark with models of 35B total parameters and more. Our regression gate is a small-budget
+version of this idea. Other work searches over whole agent designs: ADAS~\cite{hu2025adas} uses a
+strong model to write new agents in code, and the Darwin G\"odel Machine~\cite{zhang2025dgm} lets
+a coding agent rewrite its own code and keeps an archive of versions that score well. All of these
+rely on large models to write the changes. We study what happens when the model that writes the
+changes is small.
+
+\paragraph{Prompt optimisation.}
+Methods such as OPRO~\cite{yang2024opro}, Promptbreeder~\cite{fernando2023promptbreeder} and
+DSPy~\cite{khattab2024dspy} improve prompts by trying many versions and scoring them. They need
+many evaluation runs and usually reset between tries. Continual Harness instead edits the prompt
+online, in the middle of a run, which is cheaper but gives no direct test of whether an edit helps.
+
+\paragraph{Learning from experience in memory.}
+Reflexion~\cite{shinn2023reflexion} lets a model write a short verbal reflection after a failure
+and use it on the next try of the same task. ExpeL~\cite{zhao2024expel} collects insights from many
+tasks and reuses them on new ones. MemGPT~\cite{packer2023memgpt} manages a large memory and moves
+only the relevant parts into the prompt; our memory database follows the same principle with
+simple embedding retrieval. Voyager~\cite{wang2023voyager} builds a library of code skills and
+keeps a skill only after it works in the environment; our verified-skills technique is a lighter
+version of this check.
+
+\paragraph{Limits of self-correction.}
+Several studies find that models struggle to correct themselves without outside feedback.
+Huang et al.~\cite{huang2024cannot} show that large models often fail to improve, or get worse,
+when they revise their own reasoning without an external signal. Self-Refine~\cite{madaan2023selfrefine}
+reports gains from self-feedback, but with strong models. Long prompts are a second problem: models
+use information in the middle of a long context poorly~\cite{liu2024lost}, and every harness edit
+makes the prompt longer. Our results show both effects in small models: self-written lessons are
+often wrong, and longer prompts go with lower success.
+
+\paragraph{Forgetting.}
+In continual learning, a model that learns new tasks can lose earlier ones (catastrophic
+forgetting~\cite{mccloskey1989catastrophic,kirkpatrick2017overcoming}). A self-edited harness can
+show the same problem without any weight change: an edit made after one task can break another task
+that passed before. We measure this directly.

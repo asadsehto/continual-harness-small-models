@@ -54,8 +54,8 @@ tokens, plus 24 minutes of learning per seed.
 
 - Regression gate over 3 seeds: 14 refiner generations checked, 11 kept, 3 undone. Of the 11
   kept, 9 were ties and only 2 were real gains (same pattern as the gate-only run).
-- Tool use across all run logs (learning, gate and eval): `run_skill` 38 times and
-  `call_subagent` 5 times. The Reflexion run used neither.
+- Tool use across all run logs (learning, gate and eval): `run_skill` 21 times and
+  `call_subagent` 5 times (counted in the trajectory logs). The Reflexion run used neither.
 - Seed results: 7, 6 and 8 out of 20.
 
 ## Hypotheses so far (qwen 0.8B only)

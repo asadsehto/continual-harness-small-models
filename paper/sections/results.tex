@@ -1,3 +1,339 @@
 \section{Results}
 \label{sec:results}
-\todo{next}
+
+\subsection{Main Results on the Weak Model (qwen 0.8B)}
+
+Table~\ref{tab:qwen} gives the results of all nine conditions on \texttt{qwen3.5:0.8b-mlx}, and
+Figure~\ref{fig:qwen} shows them as a chart.
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccccc}
+\toprule
+Condition & All (95\% CI) & Train & Held-out (95\% CI) & vs C0: better / worse & $p$ \\
+\midrule
+C0 fixed harness       & 32\% (21--44) & 33\% & 27\% (11--52) & -- & -- \\
+C1 Continual Harness   & 15\% (8--26)  & 16\% & 13\% (4--38)  & 5 / 15  & \textbf{0.041} \\
+\midrule
++ separate refiner     & 22\% (13--34) & 24\% & 13\% (4--38)  & 6 / 12  & 0.238 \\
++ regression gate      & 20\% (12--32) & 18\% & 27\% (11--52) & 3 / 10  & 0.092 \\
++ memory database      & 20\% (12--32) & 20\% & 20\% (7--45)  & 7 / 14  & 0.189 \\
++ verified skills      & 17\% (9--28)  & 18\% & 13\% (4--38)  & 7 / 16  & 0.093 \\
++ structured errors    & 8\% (4--18)   & 9\%  & 7\% (1--30)   & 2 / 16  & \textbf{0.001} \\
+\midrule
+C8 all five            & \textbf{35\%} (24--48) & 27\% & \textbf{60\%} (36--80) & 14 / 12 & 0.845 \\
+Reflexion              & 5\% (2--14)   & 7\%  & 0\% (0--20)   & 1 / 17  & \textbf{$<$0.001} \\
+\bottomrule
+\end{tabular}
+\caption{Results on \texttt{qwen3.5:0.8b-mlx} (60 evaluation runs per condition: 20 tasks
+$\times$ 3 seeds). ``Better / worse'' counts the (task, seed) pairs where the condition passed and
+C0 failed, or the opposite. $p$ is the exact McNemar test against C0; bold $p$ means significant
+($p < 0.05$).}
+\label{tab:qwen}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  ybar, bar width=7pt, width=\textwidth, height=6.2cm,
+  ymin=0, ymax=70, ylabel={Success rate (\%)},
+  symbolic x coords={C0,C1,refiner,gate,memdb,verified,errors,C8,Reflexion},
+  xtick=data, xticklabel style={font=\small, rotate=20, anchor=east},
+  legend style={at={(0.02,0.98)}, anchor=north west, font=\small, draw=none},
+  enlarge x limits=0.07,
+  nodes near coords, every node near coord/.append style={font=\tiny},
+  extra y ticks={32}, extra y tick labels={}, extra y tick style={grid=major, major grid style={dashed, gray}},
+]
+\addplot[fill=blue!45, draw=blue!70] coordinates {(C0,32) (C1,15) (refiner,22) (gate,20) (memdb,20) (verified,17) (errors,8) (C8,35) (Reflexion,5)};
+\addplot[fill=orange!55, draw=orange!80] coordinates {(C0,27) (C1,13) (refiner,13) (gate,27) (memdb,20) (verified,13) (errors,7) (C8,60) (Reflexion,0)};
+\legend{All tasks, Held-out tasks}
+\end{axis}
+\end{tikzpicture}
+\caption{Success rate of every condition on \texttt{qwen3.5:0.8b-mlx}. The dashed line is the
+fixed harness (C0) on all tasks. Only the full system (C8) reaches it. ``refiner'', ``gate'',
+``memdb'', ``verified'' and ``errors'' are C1 plus one technique.}
+\label{fig:qwen}
+\end{figure}
+
+\paragraph{Continual Harness as-is makes the small model worse.}
+With a fixed harness, qwen passes 32\% of the tasks. When it edits its own harness (C1), it passes
+only 15\%. Pair by pair, C1 is worse than C0 on 15 (task, seed) pairs and better on only 5, which is
+significant ($p = 0.041$). The drop is similar on train tasks (33\% to 16\%) and held-out tasks
+(27\% to 13\%), so the edits do not even help on the tasks they were learned from.
+
+\paragraph{No single technique is enough.}
+Every technique alone leaves qwen below the fixed harness. Four of them reduce the harm of C1: a
+separate refiner (22\%), the regression gate (20\%), the memory database (20\%) and verified skills
+(17\%). None of these is significantly different from C1 (all $p > 0.4$; Table~\ref{tab:vsc1}).
+Structured errors alone makes things worse (8\%, significantly below C0).
+
+\paragraph{All five together recover the fixed-harness level.}
+With all five techniques (C8), qwen passes 35\% of the tasks, level with the fixed harness (14 pairs
+better, 12 worse, $p = 0.845$). Compared with Continual Harness as-is, C8 is \emph{significantly
+better}: 18 pairs better and 6 worse ($p = 0.023$; Table~\ref{tab:vsc1}). It is the only condition
+that is significantly better than C1.
+
+\paragraph{The full system does best on held-out tasks, but the sample is small.}
+On the 5 held-out tasks, C8 passes 9 of 15 runs (60\%), against 4 of 15 (27\%) for the fixed
+harness. Pair by pair this is 7 better and 2 worse, which is \emph{not} significant ($p = 0.18$): the
+confidence intervals overlap (36--80\% and 11--52\%). We treat it as a promising sign, not a result.
+On train tasks, C8 is slightly below C0 (27\% against 33\%).
+
+\paragraph{Reflexion-style memory is the worst condition.}
+When qwen writes reflections about its own failures and reads them on later tasks, it passes only
+5\% of the tasks, and none of the held-out runs. It is worse than C0 on 17 pairs and better on 1
+($p < 0.001$). We look at why in Section~\ref{sec:discussion}.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+Condition (qwen) & vs C1: better / worse & $p$ \\
+\midrule
++ separate refiner  & 9 / 5  & 0.424 \\
++ regression gate   & 10 / 7 & 0.629 \\
++ memory database   & 10 / 7 & 0.629 \\
++ verified skills   & 6 / 5  & 1.000 \\
++ structured errors & 4 / 8  & 0.388 \\
+C8 all five         & 18 / 6 & \textbf{0.023} \\
+\bottomrule
+\end{tabular}
+\caption{Paired comparison of each technique with Continual Harness as-is (C1) on qwen. Only the
+full system is significantly better.}
+\label{tab:vsc1}
+\end{table}
+
+\subsection{Results on the Strong Model (gemma e2b)}
+
+Table~\ref{tab:gemma} gives the three main conditions on \texttt{gemma4:e2b-it-qat}, and
+Figure~\ref{fig:models} compares both models.
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccccc}
+\toprule
+Condition & All (95\% CI) & Train & Held-out (95\% CI) & vs C0: better / worse & $p$ \\
+\midrule
+C0 fixed harness     & \textbf{92\%} (82--96) & 96\% & 80\% (55--93) & -- & -- \\
+C1 Continual Harness & 77\% (65--86) & 82\% & 60\% (36--80) & 2 / 11 & \textbf{0.022} \\
+C8 all five          & 80\% (68--88) & 82\% & 73\% (48--89) & 2 / 9  & 0.065 \\
+\bottomrule
+\end{tabular}
+\caption{Results on \texttt{gemma4:e2b-it-qat} (60 evaluation runs per condition).}
+\label{tab:gemma}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  ybar, bar width=14pt, width=0.75\textwidth, height=5.6cm,
+  ymin=0, ymax=105, ylabel={Success rate (\%)},
+  symbolic x coords={qwen,gemma},
+  xtick=data, xticklabels={qwen 0.8B, gemma e2b}, enlarge x limits=0.45,
+  legend style={at={(0.5,1.02)}, anchor=south, legend columns=3, font=\small, draw=none},
+  nodes near coords, every node near coord/.append style={font=\scriptsize},
+]
+\addplot[fill=gray!45, draw=gray!80] coordinates {(qwen,32) (gemma,92)};
+\addplot[fill=red!40, draw=red!70] coordinates {(qwen,15) (gemma,77)};
+\addplot[fill=blue!45, draw=blue!70] coordinates {(qwen,35) (gemma,80)};
+\legend{C0 fixed harness, C1 Continual Harness, C8 all five}
+\end{axis}
+\end{tikzpicture}
+\caption{The three main conditions on both models. In both, Continual Harness as-is (C1) is
+significantly worse than the fixed harness, and the full system (C8) is better than C1. Only for
+the weak model does C8 reach the fixed harness.}
+\label{fig:models}
+\end{figure}
+
+\paragraph{The main finding repeats on a second model.}
+Gemma is much stronger: with the fixed harness it already passes 92\% of the tasks. Continual
+Harness as-is again makes it significantly worse, dropping to 77\% (11 pairs worse, 2 better,
+$p = 0.022$). So self-editing harms both a weak and a strong small model.
+
+\paragraph{The full system helps less on the strong model.}
+C8 reaches 80\% on gemma, slightly above C1 (11 pairs better, 9 worse, $p = 0.82$) and still below
+the fixed harness (not significant, $p = 0.065$). On held-out tasks C8 gives 73\%, between C1
+(60\%) and C0 (80\%). With a baseline this close to 100\%, there is little room for any gain.
+
+\subsection{What Happens to the Edits}
+
+Table~\ref{tab:edits} shows how often the refiner ran, what the regression gate decided, and what
+the final harness looked like.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{llccl}
+\toprule
+Model & Condition & Refiner runs & Gate: kept / undone & Final harness (per seed) \\
+\midrule
+qwen  & C1              & 17 & -- & strategy 2.8k--3.3k chars, 1--4 skills, 1--5 sub-agents \\
+qwen  & + regression gate & 16 & 13 / 3 & one seed ends with the starting strategy \\
+qwen  & C8              & 14 & 11 / 3 & strategy 3.5k--4.0k chars, 0--3 skills, 3--5 sub-agents \\
+gemma & C1              & 6  & -- & strategy 2.4k--3.5k chars, 1--5 skills, 1--3 sub-agents \\
+gemma & C8              & 6  & 1 / 5  & \textbf{2 of 3 seeds: exactly the starting harness} \\
+\bottomrule
+\end{tabular}
+\caption{Edits over all 3 seeds. ``Refiner runs'' counts the times the four passes ran. The gate
+compares the old and new harness on up to 3 recent train tasks.}
+\label{tab:edits}
+\end{table}
+
+\paragraph{For qwen, the gate cannot tell good edits from bad ones.}
+In the regression-gate run, the gate kept 13 of 16 edits, but 10 of the 13 were \emph{ties}: 7 times
+both harnesses passed 0 of the rerun tasks, and 3 times both passed 1. Only 3 kept edits were real
+gains. In C8, the gate kept 11 of 14, and again 9 of the 11 were ties. When the model fails most
+tasks, a test on 3 recent tasks gives almost no signal, and most edits pass the test by default.
+
+\paragraph{For gemma, the gate rejects almost everything.}
+In C8 on gemma, the gate undid 5 of 6 edits, because each time the new harness passed fewer of the
+rerun tasks than the old one. The one edit it kept was a tie. In 2 of the 3 seeds, the final harness
+was exactly the starting harness. This explains why C8 on gemma behaves much like the fixed harness:
+for those seeds, the only differences from C0 are the structured error messages and the sampling
+noise.
+
+\paragraph{Gemma learns from fewer steps.}
+The refiner ran only 6 times on gemma against 14--18 times on qwen, because gemma solves tasks in
+about 5 steps (qwen uses 10--14), and edits are scheduled every 25 steps.
+
+\subsection{Forgetting}
+
+Table~\ref{tab:forgetting} counts the train tasks that passed while learning but failed at
+evaluation with the final harness.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{llcc}
+\toprule
+Model & Condition & Passed while learning & Of those, failed at evaluation \\
+\midrule
+qwen  & C1                & 12 / 45 & 8 (67\%) \\
+qwen  & + separate refiner & 13 / 45 & 8 (62\%) \\
+qwen  & + regression gate & 14 / 45 & 8 (57\%) \\
+qwen  & + memory database & 12 / 45 & 8 (67\%) \\
+qwen  & + verified skills & 11 / 45 & 7 (64\%) \\
+qwen  & + structured errors & 10 / 45 & 6 (60\%) \\
+qwen  & C8                & 18 / 45 & 10 (56\%) \\
+qwen  & Reflexion         & 7 / 45  & 6 (86\%) \\
+\midrule
+gemma & C1                & 42 / 45 & 7 (17\%) \\
+gemma & C8                & 40 / 45 & 3 (8\%) \\
+\bottomrule
+\end{tabular}
+\caption{Forgetting: train tasks passed during learning that failed at evaluation.}
+\label{tab:forgetting}
+\end{table}
+
+\paragraph{Forgetting is high for qwen in every condition.}
+More than half of the tasks qwen solved while learning failed again at evaluation, in every
+condition, with or without the gate. For a weak model, part of this is plain chance: a model that
+passes a task one time in three will often fail it the next time, even with the same harness. So
+forgetting alone cannot separate the effect of the edits from this noise. Still, C8 passed the
+most train tasks while learning (18 of 45, against 12 for C1).
+
+\paragraph{For gemma, the gate halves forgetting.}
+Gemma passes almost every train task while learning. With C1, 7 of those 42 then fail at
+evaluation; with C8, only 3 of 40 do. Because the gate undid most edits, fewer changes could break
+tasks that already worked.
+
+\subsection{Cost and Behaviour}
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llccccc}
+\toprule
+Model & Condition & Steps / task & Hit 15-step limit & Seconds / task & Prompt tokens / task & Learning min / seed \\
+\midrule
+qwen  & C0                  & 9.8  & 29 / 60 & 14.5 & 14{,}240 & -- \\
+qwen  & C1                  & 13.9 & 53 / 60 & 29.7 & 44{,}875 & 13.5 \\
+qwen  & + separate refiner  & 12.4 & 43 / 60 & 19.3 & 46{,}132 & 13.7 \\
+qwen  & + regression gate   & 13.0 & 45 / 60 & 18.3 & 30{,}745 & 11.8 \\
+qwen  & + memory database   & 13.8 & 51 / 60 & 22.9 & 43{,}247 & 10.6 \\
+qwen  & + verified skills   & 13.7 & 50 / 60 & 29.2 & 37{,}521 & 15.2 \\
+qwen  & + structured errors & 13.6 & 51 / 60 & 26.7 & 46{,}262 & 17.0 \\
+qwen  & C8                  & 10.4 & 31 / 60 & 28.1 & 33{,}662 & 23.9 \\
+qwen  & Reflexion           & 14.4 & 54 / 60 & 22.3 & 27{,}280 & 22.4 \\
+\midrule
+gemma & C0                  & 5.1  & 2 / 60  & 14.5 & 3{,}403 & -- \\
+gemma & C1                  & 4.6  & 1 / 60  & 14.7 & 8{,}400 & 10.2 \\
+gemma & C8                  & 5.0  & 1 / 60  & 11.4 & 5{,}154 & 7.6 \\
+\bottomrule
+\end{tabular}
+\caption{Behaviour and cost at evaluation. Prompt tokens are summed over all steps of a task.}
+\label{tab:cost}
+\end{table}
+
+Table~\ref{tab:cost} shows behaviour and cost.
+
+\paragraph{Failing conditions get stuck.}
+With the fixed harness, qwen hits the 15-step limit in 29 of 60 runs. With C1 it hits it in 53 of 60:
+instead of finishing, it keeps calling tools until it runs out of steps. The conditions with the
+lowest success (structured errors, Reflexion) hit the limit most often (51 and 54 of 60). C8 is the
+only learning condition that stays close to the fixed harness (31 of 60), and it is also the only
+one that matches its success rate.
+
+\paragraph{Self-editing makes the prompt much longer.}
+With C1, qwen uses three times as many prompt tokens per task as with the fixed harness (44{,}875
+against 14{,}240), because of the longer strategy and the extra memory, skills and sub-agents, and
+because more steps are used. Gemma's prompts grow 2.5 times (3{,}403 to 8{,}400). In C8 the growth
+is smaller on both models.
+
+\paragraph{The full system costs about twice the time on qwen.}
+C8 takes 28.1 seconds per task against 14.5 for the fixed harness, plus about 24 minutes of learning
+per seed (refiner calls and gate runs). On gemma C8 is even slightly faster than C1, because most
+edits were undone.
+
+\paragraph{Format errors are rare, except after edits.}
+Calls to a tool that does not exist were almost absent for qwen (1 at evaluation in all runs) and
+for gemma with the fixed harness and C8 (0). Gemma with C1 made 14 such calls (see below).
+
+\subsection{How the Agent Used Skills and Sub-agents}
+
+Table~\ref{tab:tooluse} counts calls to skills and sub-agents over all phases of each run
+(learning, gate reruns and evaluation).
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{llcc}
+\toprule
+Model & Condition & \texttt{run\_skill} calls & \texttt{call\_subagent} calls \\
+\midrule
+qwen  & C1                  & 3  & 0 \\
+qwen  & + separate refiner  & 45 & 3 \\
+qwen  & + regression gate   & 15 & 3 \\
+qwen  & + memory database   & 20 & 1 \\
+qwen  & + verified skills   & 3  & 3 \\
+qwen  & + structured errors & 0  & 0 \\
+qwen  & C8                  & 21 & 5 \\
+\midrule
+gemma & C1                  & 8  & 10 \\
+gemma & C8                  & 2  & 7 \\
+\bottomrule
+\end{tabular}
+\caption{Use of skills and sub-agents, summed over 3 seeds and all phases.}
+\label{tab:tooluse}
+\end{table}
+
+\paragraph{The small model rarely uses what the refiner builds.}
+In C1, qwen's own refiner wrote skills, but qwen called them only 3 times in total. Skills were used
+more when they were written by the larger refiner (45 calls) or when memory was retrieved by
+relevance (20 calls). With verified skills, the check itself worked: it rejected 8 broken skills,
+for example code that used folder paths that do not exist. But qwen still called the kept skills only
+3 times. With structured errors alone, qwen never called a skill or a sub-agent.
+
+\paragraph{Gemma sometimes calls skills by the wrong name.}
+Gemma with C1 made 14 calls to unknown tools at evaluation. In these calls it used the \emph{name of
+a skill or sub-agent} (for example \texttt{file\_system\_organizer}) as if it were a tool, instead of
+calling it through \texttt{run\_skill} or \texttt{call\_subagent}. The edited harness thus added a
+new kind of error that the fixed harness never had.

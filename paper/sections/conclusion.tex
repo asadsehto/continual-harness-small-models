@@ -1,3 +1,17 @@
 \section{Conclusion}
 \label{sec:conclusion}
-\todo{}
+
+We asked whether small models that run on a laptop can improve their own harness. With Continual
+Harness as-is, they cannot: self-editing made both a weak model (32\% to 15\%) and a strong model
+(92\% to 77\%) significantly worse than a fixed harness. The main reason is that a small model
+writes wrong lessons into its own prompt and cannot tell good edits from bad ones, while every edit
+makes the prompt longer. No single added technique fixed this. All five together (a larger refiner,
+a regression gate, a memory database, verified skills and structured errors) brought the weak model
+back to the fixed-harness level, significantly better than Continual Harness as-is, with a
+promising but not yet significant gain on new tasks. For the strong model, the gate rejected almost
+every edit, which limited the harm but gave no gain.
+
+Self-improvement below the capability floor needs outside checks that the small model cannot
+provide itself. Future work should test longer tasks with more experience to learn from, gates with
+more reruns, a leave-one-out study of the techniques, and more models between 1B and 5B
+parameters. Our code and tasks are open, so these runs can be repeated on any laptop.

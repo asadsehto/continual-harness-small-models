@@ -1,3 +1,174 @@
-\section{Task List}
+\section{All Tasks}
 \label{app:tasks}
-\todo{table of all 20 tasks}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{llp{10.4cm}}
+\toprule
+Task & Kind & What the agent must do \\
+\midrule
+\multicolumn{3}{l}{\emph{Train tasks}} \\
+\texttt{fix\_fib}         & coding & Fix the bug in \texttt{fib.py} so the tests pass, without changing the tests. \\
+\texttt{palindrome}       & coding & Write \texttt{is\_palindrome(s)}, ignoring case, spaces and punctuation, so the tests pass. \\
+\texttt{fix\_import}      & coding & \texttt{python main.py} crashes; make it run and print the result, without changing \texttt{mathutils.py}. \\
+\texttt{word\_count}      & coding & Write a script \texttt{count\_words.py FILE} that prints only the number of words in the file. \\
+\texttt{safe\_divide}     & coding & Make \texttt{safe\_divide} return \texttt{None} when dividing by 0, so the tests pass. \\
+\texttt{rename\_function} & coding & Rename the function \texttt{calc} to \texttt{calculate\_total} everywhere it is used. \\
+\texttt{json\_port}       & coding & Change the port in \texttt{config.json} to the number 8080, keeping all other settings and valid JSON. \\
+\texttt{organize}         & PC & Move every \texttt{.txt} file into a folder \texttt{txt} and every \texttt{.csv} file into a folder \texttt{csv}. \\
+\texttt{count\_lines}     & PC & Write the number of lines in \texttt{server.log} into \texttt{answer.txt}. \\
+\texttt{csv\_sum}         & PC & Add up the \texttt{amount} column of \texttt{sales.csv} and write the total into \texttt{total.txt}. \\
+\texttt{find\_errors}     & PC & Copy every line of \texttt{app.log} that contains \texttt{ERROR} into \texttt{errors.log}, in order. \\
+\texttt{rename\_photos}   & PC & Rename \texttt{IMG\_1.JPG} \ldots\ \texttt{IMG\_3.JPG} to \texttt{photo\_001.jpg} \ldots\ \texttt{photo\_003.jpg}. \\
+\texttt{delete\_tmp}      & PC & Delete every \texttt{.tmp} file in the folder and its subfolders, keeping all other files. \\
+\texttt{merge\_parts}     & PC & Join \texttt{part1.txt}, \texttt{part2.txt} and \texttt{part3.txt}, in order, into \texttt{full.txt}. \\
+\texttt{scaffold}         & PC & Create a folder \texttt{src} with an empty \texttt{\_\_init\_\_.py}, an empty folder \texttt{tests} and a \texttt{README.md}. \\
+\midrule
+\multicolumn{3}{l}{\emph{Held-out tasks}} \\
+\texttt{reverse\_words}   & coding & Write \texttt{reverse\_words(s)} so the tests pass, without changing the tests. \\
+\texttt{average\_empty}   & coding & Fix \texttt{stats.py} so the failing tests pass, without changing the tests. \\
+\texttt{failed\_rows}     & PC & Count the rows of \texttt{jobs.csv} whose status is \texttt{failed} and write the number into a file. \\
+\texttt{largest\_file}    & PC & Find the largest of four files by size in bytes and write its name into a file. \\
+\texttt{us\_spelling}     & PC & Replace every \texttt{colour} with \texttt{color} in all \texttt{.md} files, including subfolders. \\
+\bottomrule
+\end{tabular}
+\caption{The 20 tasks. Each is checked automatically from the final state of its folder.}
+\end{table}
+
+\section{Results per Task}
+\label{app:pertask}
+
+\begin{table}[h]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{l|ccccccccc|ccc}
+\toprule
+ & \multicolumn{9}{c|}{qwen 0.8B} & \multicolumn{3}{c}{gemma e2b} \\
+Task & C0 & C1 & refiner & gate & memdb & verified & errors & C8 & Reflexion & C0 & C1 & C8 \\
+\midrule
+\texttt{fix\_fib}         & 1 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 3 & 3 & 3 \\
+\texttt{palindrome}       & 1 & 1 & 1 & 1 & 0 & 0 & 1 & 0 & 0 & 1 & 2 & 1 \\
+\texttt{fix\_import}      & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 3 & 2 & 2 \\
+\texttt{word\_count}      & 0 & 0 & 1 & 0 & 0 & 0 & 0 & 1 & 0 & 3 & 2 & 3 \\
+\texttt{safe\_divide}     & 3 & 0 & 2 & 3 & 1 & 0 & 1 & 2 & 1 & 3 & 3 & 3 \\
+\texttt{rename\_function} & 1 & 0 & 0 & 0 & 1 & 1 & 0 & 0 & 0 & 3 & 3 & 3 \\
+\texttt{json\_port}       & 3 & 2 & 3 & 2 & 2 & 1 & 1 & 2 & 1 & 3 & 3 & 2 \\
+\texttt{organize}         & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 3 & 3 & 3 \\
+\texttt{count\_lines}     & 2 & 1 & 2 & 0 & 0 & 2 & 0 & 1 & 0 & 3 & 3 & 2 \\
+\texttt{csv\_sum}         & 1 & 1 & 1 & 0 & 1 & 0 & 0 & 1 & 0 & 3 & 2 & 2 \\
+\texttt{find\_errors}     & 1 & 1 & 1 & 1 & 0 & 0 & 0 & 2 & 1 & 3 & 2 & 3 \\
+\texttt{rename\_photos}   & 0 & 0 & 0 & 0 & 0 & 1 & 0 & 1 & 0 & 3 & 2 & 3 \\
+\texttt{delete\_tmp}      & 1 & 0 & 0 & 1 & 2 & 1 & 1 & 0 & 0 & 3 & 3 & 3 \\
+\texttt{merge\_parts}     & 0 & 1 & 0 & 0 & 1 & 1 & 0 & 1 & 0 & 3 & 3 & 2 \\
+\texttt{scaffold}         & 1 & 0 & 0 & 0 & 1 & 1 & 0 & 1 & 0 & 3 & 1 & 2 \\
+\midrule
+\texttt{reverse\_words}   & 1 & 0 & 1 & 1 & 1 & 0 & 0 & 3 & 0 & 3 & 2 & 2 \\
+\texttt{average\_empty}   & 1 & 0 & 0 & 1 & 1 & 0 & 0 & 1 & 0 & 3 & 2 & 3 \\
+\texttt{failed\_rows}     & 0 & 1 & 1 & 0 & 0 & 1 & 0 & 2 & 0 & 2 & 1 & 3 \\
+\texttt{largest\_file}    & 1 & 1 & 0 & 1 & 1 & 1 & 1 & 1 & 0 & 2 & 2 & 2 \\
+\texttt{us\_spelling}     & 1 & 0 & 0 & 1 & 0 & 0 & 0 & 2 & 0 & 2 & 2 & 1 \\
+\midrule
+Total (of 60)             & 19 & 9 & 13 & 12 & 12 & 10 & 5 & 21 & 3 & 55 & 46 & 48 \\
+\bottomrule
+\end{tabular}
+\caption{Number of seeds (out of 3) in which each task passed at evaluation. The last five rows are
+the held-out tasks.}
+\end{table}
+
+\section{Structured Error Example}
+\label{app:errors}
+
+A failed command in C1 returns only the raw output. With structured errors, the same failure
+returns a short header first:
+\begin{verbatim}
+ERROR
+type: python_exception
+message: ImportError: cannot import name 'add_numbers' from 'mathutils'
+hint: The Python code raised an exception. Read the message and the line
+      it points to, then fix it.
+--- full output ---
+exit code: 1
+stderr:
+Traceback (most recent call last):
+  File "main.py", line 1, in <module>
+    from mathutils import add_numbers
+ImportError: cannot import name 'add_numbers' from 'mathutils'
+\end{verbatim}
+The 14 error types are: \texttt{outside\_task\_folder}, \texttt{file\_not\_found},
+\texttt{blocked\_by\_sandbox}, \texttt{timeout}, \texttt{task\_folder\_deleted},
+\texttt{bad\_tool\_call}, \texttt{unknown\_skill\_or\_subagent}, \texttt{module\_not\_found},
+\texttt{command\_not\_found}, \texttt{syntax\_error}, \texttt{test\_failed},
+\texttt{python\_exception}, \texttt{write\_failed} and \texttt{command\_failed}.
+
+\section{Reflexion Prompt}
+\label{app:reflexion}
+
+After each failed train task, the worker receives this prompt, with the task and its own steps
+filled in:
+\begin{verbatim}
+You are an AI agent that does computer tasks (coding, files, shell)
+inside a task folder. You just FAILED a task. Below are the task and
+your steps.
+
+## Task
+{instruction}
+
+## Your steps
+{steps}
+
+In a few sentences, diagnose a possible reason for the failure and
+write a new, concise, high-level plan that avoids the same mistake.
+Write it so it also helps on other, similar tasks.
+Reply with the reflection only.
+\end{verbatim}
+
+\section{All Settings}
+\label{app:settings}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{ll}
+\toprule
+Setting & Value \\
+\midrule
+Max steps per task & 15 \\
+Temperature & 0.7 \\
+Context size & 32{,}768 tokens \\
+Max output tokens per reply & 4{,}096 \\
+Seeds & 3 (0, 1, 2) \\
+Sandbox command time limit & 30 seconds \\
+Refiner schedule & first after step 25; every 25 steps to step 200; then every 100 \\
+Refiner window & last 25 steps (20 for the memory pass) \\
+Strategy limit & 4{,}000 characters \\
+Memory limit (C1) & 20 notes of 500 characters \\
+Skill limit & 10 skills of 3{,}000 characters of code \\
+Sub-agent limit & 5 sub-agents, 8 turns each \\
+Regression gate & rerun up to 3 recent train tasks; keep if not fewer passes \\
+Memory database & up to 200 notes; top 5 by cosine similarity (\texttt{nomic-embed-text}) \\
+Reflexion & reflect after failed train tasks; keep last 3; 500 characters each \\
+Separate refiner & \texttt{gemma4:e4b} \\
+\bottomrule
+\end{tabular}
+\caption{Settings used in all runs.}
+\end{table}
+
+\section{Reproducing the Results}
+\label{app:repro}
+
+The code, tasks and checkers are available at
+\url{https://github.com/asadsehto/continual-harness-small-models}. The main commands are:
+\begin{verbatim}
+uv run python -m scripts.check_tasks          # test every checker
+uv run python -m scripts.run_pilot --model <model> --tasks all --seeds 3   # C0
+uv run python -m scripts.run_phase1 --model <model> --seeds 3              # C1
+uv run python -m scripts.run_phase1 --model <model> --seeds 3 \
+    --refiner-model gemma4:e4b --gate --memory-db \
+    --verified-skills --structured-errors                                  # C8
+uv run python -m scripts.run_phase1 --model <model> --seeds 3 --reflexion  # Reflexion
+uv run python -m scripts.analyze <C0 run> name=<run> ...                   # tables
+\end{verbatim}
+Each run saves its settings, the server version and model digest, every step, every harness edit
+(before and after) and every result.

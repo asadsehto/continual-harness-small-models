@@ -5,18 +5,26 @@
 \usepackage{lmodern}
 \usepackage{microtype}
 \usepackage{amsmath}
+\usepackage{amssymb}
 \usepackage{booktabs}
+\usepackage{multirow}
 \usepackage{graphicx}
 \usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.17}
+\usepackage{enumitem}
 \usepackage[numbers,sort&compress]{natbib}
 \usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
 
-\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+\setlist{itemsep=2pt,topsep=4pt}
 
 \title{Self-Improving Harnesses Below the Capability Floor:\\
 Continual Harness with Small Local Language Models}
 
-\author{\todo{your name and affiliation}}
+\author{Asad Saleem\\
+Independent Researcher}
 
 \date{}
 
@@ -24,16 +32,14 @@ Continual Harness with Small Local Language Models}
 
 \maketitle
 
-\begin{abstract}
-\todo{written last}
-\end{abstract}
-
+\input{sections/abstract}
 \input{sections/introduction}
 \input{sections/related_work}
 \input{sections/method}
 \input{sections/setup}
 \input{sections/results}
 \input{sections/discussion}
+\input{sections/limitations}
 \input{sections/conclusion}
 
 \bibliographystyle{plainnat}

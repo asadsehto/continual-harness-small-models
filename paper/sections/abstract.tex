@@ -1,0 +1,19 @@
+\begin{abstract}
+A language-model agent works inside a \emph{harness}: its prompt, memory, tools and helper code.
+Continual Harness lets an agent rewrite its own harness while it works, and it improves large
+frontier models. Its authors suggest that weaker models fall below a ``capability floor'' and cannot
+improve themselves this way. We test this directly with two small models that run on a laptop,
+\texttt{qwen3.5:0.8b} and \texttt{gemma4:e2b}, on 20 computer tasks (coding, files, shell and data)
+with automatic pass/fail checks. We re-implement Continual Harness for local models and add five
+techniques, each aimed at a weakness of small models: a separate, larger refiner; a regression gate
+that keeps an edit only if recent tasks do not get worse; a memory database with retrieval; skills
+that are kept only if their code runs; and structured error messages. We find three things. First,
+Continual Harness as-is makes both models significantly worse than a fixed harness (qwen: 32\% to
+15\%; gemma: 92\% to 77\%). Second, no single technique brings the small model back to the
+fixed-harness level, but all five together do (qwen: 35\%, significantly better than Continual
+Harness as-is, $p = 0.023$), with a large but not significant gain on held-out tasks (27\% to
+60\%). Third, a simple Reflexion-style memory makes the smallest model much worse (5\%). For the
+stronger model, the regression gate rejects most edits, which removes most of the harm but gives no
+gain over the fixed harness. Self-editing below the capability floor is harmful by default, and
+the main value of our techniques is to limit that harm. We release our code and tasks.
+\end{abstract}

@@ -1,3 +1,91 @@
 \section{Discussion}
 \label{sec:discussion}
-\todo{}
+
+\subsection{Why Self-Editing Hurts Small Models}
+
+\paragraph{The lessons are often wrong.}
+The refiner learns from the worker's recent steps. When the worker fails most tasks, these steps
+are full of mistakes, and a small refiner turns the mistakes into rules. For example, after a few
+tasks, qwen's own refiner wrote this lesson into its strategy (shortened):
+\begin{quote}\small
+\emph{``The agent attempted \texttt{cd /task} but the task folder doesn't exist [\ldots]
+Lesson: Always use the exact local path provided (\texttt{/task}) and verify it exists [\ldots]
+Install dependencies using \texttt{pip install pytest}.''}
+\end{quote}
+Both pieces of advice are wrong: there is no \texttt{/task} folder (the agent is already in the task
+folder), and the sandbox has no network, so \texttt{pip install} always fails. These wrong rules are
+then shown to the worker on every following task. The Reflexion baseline shows the same problem in
+its purest form: the reflections are confident explanations of failures that are often not the real
+cause. One reflection after a failed CSV task claimed the answer was rejected because
+\texttt{382.35} and \texttt{382.350} ``do not match''. In fact the checker compares the values
+as numbers, so the format does not matter; the real problem was that the total itself was wrong
+(the correct total is 351.25). This matches the finding that models struggle to correct themselves without a
+reliable outside signal~\cite{huang2024cannot}.
+
+\paragraph{Longer prompts, more steps, fewer finished tasks.}
+Every edit adds text to the prompt. With C1, qwen's prompts became three times longer, and the share
+of tasks that ran out of steps rose from 48\% to 88\%. Instead of finishing, the agent kept calling
+tools. Small models are known to use long contexts poorly~\cite{liu2024lost}, and our runs show the
+cost directly: the conditions that use the most steps tend to have the lowest success
+(Reflexion and structured errors), and C8, the only learning condition with about the same number of steps as the fixed
+harness, is also the only one that matches its success rate.
+
+\paragraph{New tools create new mistakes.}
+Skills and sub-agents are only useful if the worker calls them correctly. Qwen rarely called the
+skills it had, and gemma sometimes called a skill's name as if it were a tool. Each new piece of
+harness is one more thing a small model can use wrongly.
+
+\subsection{Why the Techniques Help Only Together}
+
+Each technique fixes one problem, but C1 has several problems at once. A better refiner still
+writes edits that nobody checks; a gate still lets most edits through when the model fails almost
+everything; retrieval still retrieves wrong lessons; and verified skills are still rarely called.
+Only in C8 do the parts cover for each other: the larger refiner writes fewer wrong rules, the gate
+removes some harmful edits, retrieval keeps the prompt shorter, and broken skills are filtered out.
+C8 is the only condition that is significantly better than C1 ($p = 0.023$).
+
+Structured errors deserve a note. Alone, it was the worst technique, yet it is part of the best
+condition. Alone, it makes every failed tool result longer, on top of C1's already long prompts.
+In C8, where prompts are shorter, the extra text costs less. We cannot separate its effect within
+C8 without a leave-one-out study, which we leave for future work.
+
+\subsection{The Gate Depends on the Model's Strength}
+
+The regression gate behaves very differently on the two models:
+\begin{itemize}
+  \item For the \textbf{weak} model, it is too \emph{weak}. Qwen fails most tasks, so the old and new
+        harness usually both pass 0 or 1 of the 3 rerun tasks. A tie counts as ``not worse'', so most
+        edits are kept, harmful or not.
+  \item For the \textbf{strong} model, it is \emph{strict}. Gemma passes almost every task, so a
+        single extra failure in the rerun undoes the edit. It undid 5 of 6 edits, and 2 of 3 seeds
+        ended with the starting harness.
+\end{itemize}
+In both cases, three reruns are too few to measure the effect of an edit; the decision mostly
+reflects chance. A gate with more reruns, or one that needs a clear gain to accept an edit, would
+be more reliable but also more expensive. For gemma, though, the strict gate was the right call
+for our task set: since the fixed harness is already at 92\%, keeping the harness unchanged is
+close to the best possible choice, and the gate halved forgetting.
+
+\subsection{What This Means in Practice}
+
+For someone building an agent on a small local model, our results suggest:
+\begin{enumerate}
+  \item \textbf{Do not turn on self-editing by default.} Without safeguards it made both models
+        significantly worse.
+  \item \textbf{If you use it, use a gate and a better refiner.} Every edit should be tested before
+        it is kept, and edits are better when a larger model writes them.
+  \item \textbf{Keep the prompt short.} Retrieve only the relevant memory, cap every part of the
+        harness, and watch the number of steps per task as an early warning sign.
+  \item \textbf{Measure against a fixed harness}, on tasks the system did not learn from. A
+        self-improving agent is only useful if it beats doing nothing.
+\end{enumerate}
+
+\subsection{The Capability Floor}
+
+The Continual Harness authors suggested that weaker models sit below a capability floor. Our
+results support this and make it more precise. Below the floor, the problem is not that the model
+cannot make edits; it makes many. The problem is that it cannot tell good edits from bad ones, and
+the bad ones are kept. Our techniques work by adding outside checks (a larger refiner, a test,
+working code) that the small model cannot provide itself. With these checks, the weak model gets
+back to the fixed-harness level and shows a hint of better transfer to new tasks; without them,
+self-improvement is self-harm.

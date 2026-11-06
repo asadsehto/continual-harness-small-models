@@ -1,0 +1,32 @@
+\section{Limitations}
+\label{sec:limitations}
+
+\paragraph{Small sample.}
+We use 20 tasks and 3 seeds, so 60 evaluation runs per condition and only 15 on held-out tasks.
+Differences of a few tasks are within noise, and some effects we see, such as C8's held-out gain on
+qwen, are not significant. More seeds and more tasks would make the results more certain.
+
+\paragraph{Two models.}
+We test one weak and one strong small model, and we ran the full set of single-technique conditions
+only on the weak one. Other model families, and sizes between 1B and 5B, may behave differently.
+
+\paragraph{Short and simple tasks.}
+Our tasks take a few steps each. Continual Harness was designed for long runs of thousands of steps,
+where there is much more experience to learn from. With 15 train tasks, the refiner runs only 6 to 18
+times per condition. For gemma, the baseline is close to 100\%, which leaves little room for gains.
+
+\paragraph{One version of each technique.}
+Each technique has settings we did not tune, such as the number of gate reruns (3), the number of
+retrieved notes (5) and the refiner model. We tested each technique alone and all together, but not
+all five together minus one (a leave-one-out study), so we cannot say how much each technique adds
+inside the full system.
+
+\paragraph{A re-implementation.}
+We re-implemented Continual Harness for local models and our tasks, keeping its design as close as
+we could. Some changes were needed (Section~\ref{sec:refiner}), so our C1 is a faithful port, not
+the original code.
+
+\paragraph{Different servers for the two models.}
+All conditions of one model ran on the same server, so comparisons within a model are fair. The two
+models ran on different servers and Ollama versions, so exact numbers should not be compared across
+models, only the direction of the effects.

@@ -1,3 +1,77 @@
 \section{Introduction}
 \label{sec:intro}
-\todo{draft after Method, Setup and Results}
+
+A language model on its own only produces text. To act as an \emph{agent} that fixes code or
+organises files, it is placed inside a \emph{harness}: a system prompt that tells it how to work,
+tools it can call, memory it can read, and helper code it can run. The harness has a large effect
+on how well the same model performs, and building a good one by hand takes a lot of work.
+
+A recent line of work lets the agent improve its own harness. Continual Harness~\cite{karten2026continual}
+runs a \emph{refiner} every few steps: the model reads its own recent steps and rewrites its prompt,
+its memory, its library of skills (small programs) and its sub-agents (helper agents), all during a
+single run and without resets. Self-Harness~\cite{zhang2026selfharness} proposes edits to the harness
+and keeps them only after a regression test. Both report clear gains, but both were tested with
+large models served from the cloud. The Continual Harness authors report that weaker models fall
+below a ``capability floor'', and that open models of up to 31B parameters could not act as both
+the teacher (the refiner) and the student (the worker).
+
+Small models are worth studying anyway. They run on a normal laptop with no cloud service, no
+cost per call and no data leaving the machine. If they could improve their own harness, a personal
+agent could adapt to its user's tasks over time. If they cannot, it is important to know \emph{why},
+and which parts of the self-improvement loop break first.
+
+In this paper we ask:
+\begin{quote}
+\emph{Can a small model (under 5B parameters) running locally improve its own harness, and which
+added techniques make this possible?}
+\end{quote}
+
+We re-implement the Continual Harness refiner for models served locally with Ollama~\cite{ollama},
+keeping its design as close as possible to the original, and run it on 20 short computer tasks
+(coding, files, shell and data) whose results are checked automatically. We then add five
+techniques, each aimed at one weakness that we expect to matter most for small models:
+\begin{enumerate}
+  \item a \textbf{separate refiner}: a larger local model writes the edits;
+  \item a \textbf{regression gate}: an edit is kept only if recent tasks do not get worse;
+  \item a \textbf{memory database}: the agent sees only the most relevant memories, not all of them;
+  \item \textbf{verified skills}: a skill is kept only if its code actually runs;
+  \item \textbf{structured errors}: failed tool calls return a short, typed message with a hint.
+\end{enumerate}
+We test each technique alone and all of them together, against a fixed (static) harness and a
+Reflexion-style memory baseline~\cite{shinn2023reflexion}, on two small models: \texttt{qwen3.5:0.8b}
+(a weak model at 32\% with a fixed harness) and \texttt{gemma4:e2b} (a strong model at 92\%).
+
+\paragraph{Findings.}
+\begin{itemize}
+  \item \textbf{Continual Harness as-is hurts small models.} With no added techniques, self-editing
+        makes both models significantly worse than a fixed harness: qwen drops from 32\% to 15\%
+        ($p = 0.041$) and gemma from 92\% to 77\% ($p = 0.022$). This confirms the capability floor
+        at both ends of the small-model range.
+  \item \textbf{No single technique is enough, but together they recover the loss.} Each technique
+        alone leaves qwen below the fixed harness (8--22\%). All five together reach 35\%, which is
+        significantly better than Continual Harness as-is (18 tasks better, 6 worse, $p = 0.023$)
+        and level with the fixed harness. On held-out tasks the full system reaches 60\% against
+        27\% for the fixed harness, but this difference is not significant with our sample size.
+  \item \textbf{Reflection alone is harmful.} A Reflexion-style memory, where the model writes notes
+        about its own failures, drops qwen to 5\%: the notes are often wrong and fill the prompt.
+  \item \textbf{For a strong model, the gate mostly says no.} For gemma, the regression gate undid
+        5 of 6 edits, so the final harness stayed close to the starting one. This removes most of
+        the harm (80\%, and much less forgetting) but gives no gain over the fixed harness.
+\end{itemize}
+
+\paragraph{Contributions.}
+\begin{itemize}
+  \item A faithful, open re-implementation of the Continual Harness refiner for local models, with
+        a sandbox, fixed size limits and full logging of every edit.
+  \item A controlled study of five techniques, alone and combined, on two small models, with paired
+        significance tests and a measure of forgetting.
+  \item Evidence that, below the capability floor, self-editing is harmful by default; that the
+        harm comes from wrong lessons written into the prompt; and that the most useful role of the
+        added techniques is to \emph{limit} harmful edits rather than to create gains.
+\end{itemize}
+
+The rest of the paper is organised as follows. Section~\ref{sec:related} covers related work,
+Section~\ref{sec:method} describes the agent, the refiner and the techniques,
+Section~\ref{sec:setup} the experiments, Section~\ref{sec:results} the results,
+Section~\ref{sec:discussion} what they mean, and Section~\ref{sec:limitations} the limits of
+this study.

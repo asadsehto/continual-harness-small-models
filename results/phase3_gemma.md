@@ -52,12 +52,12 @@ vs 7 of 42 for C1. This matches the gate keeping few edits (H4 supported for gem
 **6. Cost.** C8 is faster per task than C1 (11.4 vs 14.7 s) and uses fewer prompt tokens
 (5154 vs 8400), because fewer edits were kept. C1 more than doubles the prompt size of C0.
 
-## Tool use (all run logs: learning, gate and eval)
+## Tool use (trajectory logs: learning, gate and eval)
 
 | Condition | `run_skill` | `call_subagent` |
 |---|---|---|
-| C1 | 11 | 12 |
-| C8 | 2 | 9 |
+| C1 | 8 | 10 |
+| C8 | 2 | 7 |
 
 ## Comparison with qwen3.5:0.8b-mlx (results/phase3_qwen.md)
 

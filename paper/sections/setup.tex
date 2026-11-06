@@ -1,57 +1,103 @@
 \section{Experimental Setup}
 \label{sec:setup}
 
-\paragraph{Tasks.}
-We use 20 short computer tasks of two kinds: 9 coding tasks (for example, fix a bug so the tests
-pass, implement a function, rename a function everywhere it is used) and 11 PC tasks on files,
-shell and data (for example, sort files into folders by type, count matching lines in a log, sum a
-column of a CSV file). Each task comes with starting files written into a fresh folder, and an
-automatic checker that looks only at the final state of the folder and returns pass or fail. Where
-a task gives test files, the checker also confirms they were not changed. Every checker was tested
-without any model: it must fail on the unchanged starting folder and pass after a reference
-solution. The tasks are split into
-15 train tasks (7 coding, 8 PC), which the harness may learn from, and 5 held-out tasks (2 coding,
-3 PC), which are only evaluated and never shown to the refiner. The task set was fixed before any
-results were seen. Appendix~\ref{app:tasks} lists all tasks.
+\subsection{Tasks}
+We use 20 short computer tasks of two kinds (Appendix~\ref{app:tasks} lists them all):
+\begin{itemize}
+  \item \textbf{9 coding tasks}, for example: fix a bug so the tests pass, write a function, make a
+        crashing script run, rename a function everywhere it is used.
+  \item \textbf{11 PC tasks} on files, the shell and data, for example: sort files into folders by
+        type, copy the error lines of a log into a new file, add up a column of a CSV file.
+\end{itemize}
+Each task has starting files, which are written into a fresh folder, and an automatic
+\emph{checker}. The checker looks only at the final state of the folder and returns pass or fail.
+If a task comes with test files, the checker also makes sure the agent did not change them. We
+tested every checker without any model: it must fail on the untouched folder (so the task is not
+already solved) and pass after our own reference solution (so the checker is correct).
 
-\paragraph{Protocol.}
+The tasks are split into 15 \textbf{train} tasks (7 coding, 8 PC), which the system may learn from,
+and 5 \textbf{held-out} tasks (2 coding, 3 PC), which are only used for evaluation and are never
+shown to the refiner. Held-out tasks show whether what the system learns carries over to new tasks.
+We fixed the task set before seeing any results.
+
+\subsection{Protocol}
 Each condition is run with 3 seeds. For each seed:
 \begin{enumerate}
-  \item \textbf{Learn.} The agent runs the 15 train tasks once each, in a shuffled order (the same
-        three orders for every condition and model). The harness is edited between tasks according
-        to the condition.
+  \item \textbf{Learn.} The agent runs the 15 train tasks once each, in a shuffled order. The order
+        depends only on the seed, so every condition and both models see the same three orders.
+        The harness is edited between tasks according to the condition.
   \item \textbf{Evaluate.} The final harness is frozen, and the agent runs all 20 tasks once.
 \end{enumerate}
-The static baseline C0 has no learning phase and runs the 20 tasks once per seed. All reported
-success rates are from the evaluation phase, giving 60 task runs (45 train, 15 held-out) per
-condition.
+The fixed-harness baseline C0 has no learning phase; it runs the 20 tasks once per seed. All
+success rates in this paper come from the evaluation phase. This gives 60 task runs per condition:
+45 on train tasks and 15 on held-out tasks.
 
-\paragraph{Models.}
-We use two small worker models, \texttt{qwen3.5:0.8b-mlx} (0.8B parameters) and
-\texttt{gemma4:e2b-it-qat}, run locally with Ollama~\cite{ollama}. The separate refiner is
-\texttt{gemma4:e4b} for both workers, and the memory database uses \texttt{nomic-embed-text}.
-All model calls use temperature 0.7, a fixed context size of 32{,}768 tokens, at most 4{,}096
-output tokens per reply, and the run's seed as the sampling seed. Thinking mode is off. We tested all conditions on \texttt{qwen3.5:0.8b-mlx}; on \texttt{gemma4:e2b-it-qat} we ran
-C0, C1 and C8.
-
-\paragraph{Hardware and serving.}
-All runs use consumer hardware. Every condition of one worker model runs on the same Ollama server
-with the same model file (we record the server version and model digest of every run), because the
-same seed can sample differently on a different server. For the gemma worker, the refiner and
-embedding model run on a second Ollama server, the same one used for the qwen runs. Each model is
-unloaded from memory after every task and every refiner call, to keep memory use flat over a run.
-A run that stops because of an infrastructure problem (lost connection, machine sleep) is never
-counted: it is set aside and the whole condition is rerun from the start.
-
-\paragraph{Metrics.}
+\subsection{Conditions and Models}
+Table~\ref{tab:conditions} lists the conditions. We use two small worker models, both run locally
+with Ollama~\cite{ollama}:
 \begin{itemize}
-  \item \textbf{Success rate} on all 20 tasks, on train tasks and on held-out tasks, with 95\%
-        Wilson score intervals~\cite{wilson1927probable}.
-  \item \textbf{Paired comparison with C0.} Each (task, seed) pair is matched across conditions.
-        We count the pairs where a condition passes and C0 fails (better) and the opposite (worse),
-        and test the difference with an exact two-sided McNemar test~\cite{mcnemar1947note}.
-  \item \textbf{Forgetting.} The number of train tasks that passed during the learning phase but
-        failed at evaluation with the final harness.
-  \item \textbf{Cost.} Mean wall-clock seconds and prompt tokens per evaluation task, and minutes
-        of learning (including refiner calls) per seed.
+  \item \texttt{qwen3.5:0.8b-mlx}: 0.8B parameters. A weak model, which passes 32\% of the tasks
+        with the fixed harness.
+  \item \texttt{gemma4:e2b-it-qat}: a strong small model, which passes 92\% of the tasks with the
+        fixed harness.
+\end{itemize}
+We ran all conditions on qwen. On gemma we ran the three main conditions (C0, C1 and C8), to test
+whether the main findings hold for a stronger model. Where a separate refiner is used, it is
+\texttt{gemma4:e4b}. The memory database uses \texttt{nomic-embed-text}.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{llcc}
+\toprule
+Condition & Description & qwen & gemma \\
+\midrule
+C0 & Fixed harness, no learning & \checkmark & \checkmark \\
+C1 & Continual Harness as-is (worker refines itself) & \checkmark & \checkmark \\
+C1 + separate refiner & \texttt{gemma4:e4b} writes the edits & \checkmark & \\
+C1 + regression gate & keep edits only if recent tasks do not get worse & \checkmark & \\
+C1 + memory database & 5 most relevant of up to 200 notes & \checkmark & \\
+C1 + verified skills & keep a skill only if its code runs & \checkmark & \\
+C1 + structured errors & typed error messages with hints & \checkmark & \\
+C8 & C1 + all five techniques & \checkmark & \checkmark \\
+Reflexion & fixed harness + reflections after failures & \checkmark & \\
+\bottomrule
+\end{tabular}
+\caption{Conditions and the worker models they were run on.}
+\label{tab:conditions}
+\end{table}
+
+\subsection{Model Settings and Serving}
+All model calls use temperature 0.7, a fixed context size of 32{,}768 tokens, at most 4{,}096 output
+tokens per reply, and the run's seed as the sampling seed. Thinking mode is off.
+
+All runs use consumer hardware. The same seed can give different outputs on a different server or
+software version, so for each worker model, every condition ran on the same Ollama server with the
+same model file. We record the server version and the model file's digest (a fingerprint of the
+exact file) in every run. The qwen runs used Ollama 0.32.6. For gemma, the worker ran on a second
+server with Ollama 0.40.7, while the refiner and the embedding model in C8 ran on the same server as
+the qwen runs. Each model is removed from memory after every task and every refiner call, so memory
+use stays flat during a run.
+
+A run that stopped because of a problem with the computer, such as a lost network connection or the
+machine going to sleep, was never counted. We set it aside and ran the whole condition again from
+the start.
+
+\subsection{Metrics}
+\begin{itemize}
+  \item \textbf{Success rate}: the share of evaluation runs that pass, on all 20 tasks, on train
+        tasks and on held-out tasks. We give 95\% Wilson confidence intervals~\cite{wilson1927probable},
+        which work well for small samples.
+  \item \textbf{Paired comparison.} Because every condition runs the same (task, seed) pairs, we can
+        compare conditions pair by pair. We count the pairs where a condition passes and the
+        reference fails (\emph{better}), and the opposite (\emph{worse}). We test whether this split
+        could be due to chance with an exact two-sided McNemar test~\cite{mcnemar1947note}. We call
+        a difference significant when $p < 0.05$.
+  \item \textbf{Forgetting}: the number of train tasks that passed during the learning phase but
+        failed at evaluation with the final harness. A high number means that later edits broke
+        things that used to work.
+  \item \textbf{Cost}: mean time in seconds and mean prompt tokens per evaluation task, and the
+        minutes spent on learning (including refiner calls and gate runs) per seed.
+  \item \textbf{Behaviour}: mean steps per task, how often a task hits the 15-step limit, and tool
+        calls with an unknown tool name (format errors).
 \end{itemize}
