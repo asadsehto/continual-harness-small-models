@@ -14,6 +14,8 @@
 # Technique #4 (--verified-skills): a new or rewritten skill is run once on a fresh copy of the most
 # recent train task's folder; it is kept only if it runs without error and returns a result.
 # Technique #5 (--structured-errors): failed tool calls return a typed error with a fixed hint.
+# Baseline --reflexion: no Refiner; after each failed train task the model writes a self-reflection,
+# and the last 3 are shown as memory (harness/reflexion.py). Saved in reflections.jsonl.
 # Fix B (--gate): after the Refiner edits the harness, rerun the train tasks that ran with the
 # old harness since the last edit (at most GATE_TASKS of them), same seed, with the new harness.
 # Keep the edits only if the new harness passes at least as many; otherwise go back to the old one.
@@ -34,6 +36,7 @@ from harness.agent import run_agent
 from harness.model import ModelError, memory_gb, server_info, set_host, unload
 from harness.memory_db import EMBED_MODEL, MAX_DB_ENTRIES, TOP_K, retrieve
 from harness.refiner import evolution_points_crossed, evolve
+from harness.reflexion import add_reflection, reflect
 from harness.state import MAX_MEMORY_ENTRIES
 from harness.tools import run_skill_code
 from harness.state import create_state, load_state, save_state
@@ -50,6 +53,7 @@ parser.add_argument("--refiner-model", default=None, help="model that writes har
 parser.add_argument("--memory-db", action="store_true", help="technique #3: memory database with retrieval of the most relevant entries")
 parser.add_argument("--verified-skills", action="store_true", help="technique #4: keep a skill only if its code runs without error")
 parser.add_argument("--structured-errors", action="store_true", help="technique #5: failed tool calls return a typed error with a hint")
+parser.add_argument("--reflexion", action="store_true", help="baseline: Reflexion-style self-reflections instead of the Refiner")
 parser.add_argument("--gate", action="store_true", help="Fix B: keep Refiner edits only if they do not lower the pass count on recent train tasks")
 parser.add_argument("--seeds", type=int, default=3)
 parser.add_argument("--first-seed", type=int, default=0)
@@ -79,6 +83,8 @@ if args.gate:
     run_name = run_name + "_gate"
 if args.memory_db:
     run_name = run_name + "_memdb"
+if args.reflexion:
+    run_name = run_name.replace("_phase1_", "_reflexion_")
 if args.verified_skills:
     run_name = run_name + "_verified"
 if args.structured_errors:
@@ -196,6 +202,8 @@ def main():
         if args.gate:
             gate_trajectory = open(os.path.join(seed_dir, "gate_trajectory.jsonl"), "w")
             gate_results = open(os.path.join(seed_dir, "gate_results.jsonl"), "w")
+        if args.reflexion:
+            reflections_file = open(os.path.join(seed_dir, "reflections.jsonl"), "w")
         # tasks that ran with the current harness since the last edit: [(task, passed), ...]
         recent = []
 
@@ -212,6 +220,20 @@ def main():
                 record["global_step"] = global_step
                 history.append(record)
             history.append({"task_id": task["id"], "outcome": "PASS" if row["success"] else "FAIL"})
+
+            if args.reflexion:
+                # Reflexion baseline: reflect on failures only, never run the Refiner
+                if not row["success"] and position < len(order) - 1:
+                    # this task's steps plus its FAIL line (same format the Refiner sees)
+                    task_steps = history[len(history) - len(read_steps(trajectory_path, start_byte)) - 1:]
+                    text, stats = reflect(args.model, task["instruction"], task_steps, seed, args.temperature)
+                    memory_check("reflection after " + task["id"])
+                    add_reflection(state, task["id"], text)
+                    save_state(state_dir, state)
+                    reflections_file.write(json.dumps({"task_id": task["id"], "position": position, "reflection": text, "stats": stats, "memory_now": [m["id"] for m in state["memory"]]}) + "\n")
+                    reflections_file.flush()
+                    print("  reflection after", task["id"], "|", len(text), "chars")
+                continue
 
             # The original evolves once per evolution point. If a task passed two points, we still
             # evolve once (the window would be the same both times).
@@ -258,6 +280,8 @@ def main():
         trajectory_file.close()
         results_file.close()
         evolution_file.close()
+        if args.reflexion:
+            reflections_file.close()
         if args.gate:
             gate_trajectory.close()
             gate_results.close()

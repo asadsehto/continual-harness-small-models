@@ -51,6 +51,7 @@ def run_sandboxed(workdir, argv, extra_read_dirs):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        errors="replace",   # binary output (e.g. `cat` of a non-text file) must not crash the run
         start_new_session=True,
     )
     try:
