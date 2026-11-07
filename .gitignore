@@ -13,3 +13,6 @@ wheels/
 runs/
 # private local files (never commit)
 *.local.*
+
+# macOS
+.DS_Store
