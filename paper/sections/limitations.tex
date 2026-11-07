@@ -3,23 +3,37 @@
 
 \paragraph{Small sample.}
 We use 20 tasks and 3 seeds, so 60 evaluation runs per condition and only 15 on held-out tasks.
-Differences of a few tasks are within noise, and some effects we see, such as C8's held-out gain on
-qwen, are not significant. More seeds and more tasks would make the results more certain.
+Differences of a few tasks are within noise. After correction for multiple comparisons, only a few
+differences remain significant; others, such as the drop from C0 to C1 on qwen, the gain from C1 to
+C8 on qwen, and C8's held-out gain, are nominal or not significant. More seeds and more tasks,
+especially held-out tasks, would make the results more certain.
+
+\paragraph{Pairs are not independent.}
+Within one seed, all evaluation runs of a learning condition share one final harness. Our paired
+tests treat the 60 pairs as independent, which can make $p$-values too small. We report per-seed
+results so the reader can judge consistency, but 3 seeds are too few for a seed-level test.
 
 \paragraph{Two models.}
 We test one weak and one strong small model, and we ran the full set of single-technique conditions
-only on the weak one. Other model families, and sizes between 1B and 5B, may behave differently.
+only on the weak one. Two models give two points, not a measurement of where the capability floor
+lies. Other model families, and sizes between 1B and 5B, may behave differently.
 
 \paragraph{Short and simple tasks.}
 Our tasks take a few steps each. Continual Harness was designed for long runs of thousands of steps,
 where there is much more experience to learn from. With 15 train tasks, the refiner runs only 6 to 18
 times per condition. For gemma, the baseline is close to 100\%, which leaves little room for gains.
 
+\paragraph{Explanations are not tested.}
+Our explanations for why self-editing hurts (wrong lessons, longer prompts, new tools) come from
+reading logs and from correlations across conditions. We did not run controls that change one of
+these factors at a time, such as a fixed harness padded to the same length as an edited one.
+
 \paragraph{One version of each technique.}
-Each technique has settings we did not tune, such as the number of gate reruns (3), the number of
-retrieved notes (5) and the refiner model. We tested each technique alone and all together, but not
-all five together minus one (a leave-one-out study), so we cannot say how much each technique adds
-inside the full system.
+Each technique has settings we did not tune, such as the number of gate reruns (3), the rule that a
+tie keeps the edit, the number of retrieved notes (5) and the refiner model. We tested each
+technique alone and all together, but not all five together minus one (a leave-one-out study), so
+we cannot say how much each technique adds inside the full system. In particular, we cannot
+separate the effect of the larger refiner from the effect of the safeguards in C8.
 
 \paragraph{A re-implementation.}
 We re-implemented Continual Harness for local models and our tasks, keeping its design as close as

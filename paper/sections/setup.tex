@@ -17,8 +17,22 @@ already solved) and pass after our own reference solution (so the checker is cor
 
 The tasks are split into 15 \textbf{train} tasks (7 coding, 8 PC), which the system may learn from,
 and 5 \textbf{held-out} tasks (2 coding, 3 PC), which are only used for evaluation and are never
-shown to the refiner. Held-out tasks show whether what the system learns carries over to new tasks.
-We fixed the task set before seeing any results.
+shown to the refiner. Because the system learns from the train tasks, its score on them can reflect memorised
+fixes rather than general skill. Held-out tasks are therefore our primary measure of whether
+learning carries over; we report them first in every results table. With 5 tasks and 3 seeds they
+give only 15 runs per condition, so we treat held-out differences as suggestive.
+
+\paragraph{What was fixed before the experiments.}
+This study was not preregistered on a public registry. Before any self-editing run, we committed a
+written research plan to the project's public repository, together with the 20 tasks, their
+checkers and the train/held-out split. The plan states the research question, four hypotheses, the
+conditions (C0, C1, single techniques and C8), the metrics, and the rule of at least 3 seeds with a
+shuffled task order; the repository history records its date. The following choices were made
+later, during the study: the exact settings of each technique (Table~\ref{tab:settings}), the
+embedding model (the plan named \texttt{embeddinggemma}; we used \texttt{nomic-embed-text}, which
+was available on the same server as the worker), running only C0, C1 and C8 on gemma, and the
+statistical tests: we chose paired McNemar tests when writing the analysis script, after the first
+results, and added the Holm correction while revising this paper, after all results.
 
 \subsection{Protocol}
 Each condition is run with 3 seeds. For each seed:
@@ -71,6 +85,17 @@ Reflexion & fixed harness + reflections after failures & \checkmark & \\
 All model calls use temperature 0.7, a fixed context size of 32{,}768 tokens, at most 4{,}096 output
 tokens per reply, and the run's seed as the sampling seed. Thinking mode is off.
 
+\paragraph{Are the runs deterministic?}
+Mostly, but not fully. With a fixed seed, the server returned the same reply for the same input in
+our logs. We can check this directly: before the first edit, every learning condition without
+retrieval or structured errors runs the same harness as C0, with the same seed. Of the 70 such qwen
+task runs, 52 repeated the C0 run exactly (same steps, same token counts) and 18 drifted apart at
+some step; only 3 of the 18 ended with a different pass/fail result. For gemma, 18 of 19 repeated
+exactly. Runs can drift because tool results are not always identical, for example when they
+include temporary folder names or timing. Embeddings come from a fixed model file, and we did not
+test them for repeatability. Because of this drift, a gate rerun with the same seed is a new
+sample, not an exact replay, and the 3 seeds are best seen as 3 samples of each condition.
+
 All runs use consumer hardware. The same seed can give different outputs on a different server or
 software version, so for each worker model, every condition ran on the same Ollama server with the
 same model file. We record the server version and the model file's digest (a fingerprint of the
@@ -79,9 +104,17 @@ server with Ollama 0.40.7, while the refiner and the embedding model in C8 ran o
 the qwen runs. Each model is removed from memory after every task and every refiner call, so memory
 use stays flat during a run.
 
-A run that stopped because of a problem with the computer, such as a lost network connection or the
-machine going to sleep, was never counted. We set it aside and ran the whole condition again from
-the start.
+\paragraph{Runs that were not counted.}
+Every reported condition comes from one complete run of all 3 seeds. Six runs stopped before they
+finished and were not counted: four because the connection to the model server was lost or the
+computer went to sleep, and two because our code crashed on a case it did not handle (the model
+writing a file to a path that is a folder, and command output that was not valid text). We fixed
+both bugs. Runs that had already finished never reached these cases (they would have crashed), so
+they are not affected. In every case we set the stopped run aside and ran the whole condition again
+from the start, with all seeds; we never kept part of a stopped run, and we never reran a condition
+that had finished. We also did not count the fixed-harness runs from before we added the sandbox
+(Section~\ref{sec:agent}), because the agent setup changed, or the short one-task tests we used to
+check each condition's code before its full run.
 
 \subsection{Metrics}
 \begin{itemize}
@@ -91,8 +124,17 @@ the start.
   \item \textbf{Paired comparison.} Because every condition runs the same (task, seed) pairs, we can
         compare conditions pair by pair. We count the pairs where a condition passes and the
         reference fails (\emph{better}), and the opposite (\emph{worse}). We test whether this split
-        could be due to chance with an exact two-sided McNemar test~\cite{mcnemar1947note}. We call
-        a difference significant when $p < 0.05$.
+        could be due to chance with an exact two-sided McNemar test~\cite{mcnemar1947note}.
+  \item \textbf{Correction for multiple comparisons.} We make many comparisons, so some small
+        $p$-values are expected by chance. We group them into families: for each model, all
+        comparisons with C0 form one family (8 for qwen, 2 for gemma), and all comparisons with C1
+        form another (6 for qwen, 1 for gemma). Within each family we adjust the $p$-values with the
+        Holm method~\cite{holm1979simple}. We call a difference \emph{significant} only if its
+        adjusted $p$ is below 0.05, and \emph{nominal} if only its unadjusted $p$ is.
+  \item \textbf{Per-seed results.} The pairs are not fully independent: within one seed, all 20
+        evaluation runs of a learning condition use the same final harness. A test that treats the
+        60 pairs as independent can therefore make $p$ too small. We report every seed separately,
+        so the reader can see whether an effect appears in each seed or comes from one.
   \item \textbf{Forgetting}: the number of train tasks that passed during the learning phase but
         failed at evaluation with the final harness. A high number means that later edits broke
         things that used to work.

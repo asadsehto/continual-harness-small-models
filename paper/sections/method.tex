@@ -20,12 +20,12 @@ kept, and what the worker sees.
   \node[box, fill=red!8, below=1.4cm of check] (refiner) {Refiner\\(4 passes)};
   \draw[arr] (task) -- (worker);
   \draw[arr] (worker) -- (check);
-  \draw[arr] (harness) -- node[left, font=\scriptsize]{system prompt + tools} (worker);
+  \draw[arr] (harness) -- node[right, font=\scriptsize, align=left]{system prompt\\+ tools} (worker);
   \draw[arr] (check) -- node[right, font=\scriptsize, align=left]{last 25 steps\\+ results} (refiner);
   \draw[arr] (refiner) -- node[below, font=\scriptsize]{edits} (harness);
   \node[tech, below=0.35cm of refiner] (t1) {separate refiner\\regression gate\\verified skills};
   \node[tech, below=0.35cm of harness] (t2) {memory database\\(top-5 retrieval)};
-  \node[tech, left=0.5cm of worker, yshift=-1.3cm] (t3) {structured\\errors};
+  \node[tech, left=1.6cm of harness] (t3) {structured\\errors};
   \draw[dashed, gray] (t1) -- (refiner);
   \draw[dashed, gray] (t2) -- (harness);
   \draw[dashed, gray] (t3) -- (worker);
@@ -122,10 +122,19 @@ Each technique targets one weakness of C1 that we expect to hurt small models mo
 Table~\ref{tab:techniques} gives a summary. We test each technique alone on top of C1, and all five
 together, which we call \textbf{C8}.
 
+C8 changes who is in charge of the harness. In C1 the small worker writes its own edits and every
+edit is kept. In C8 a larger local model (\texttt{gemma4:e4b}) writes the edits, and outside checks
+(the gate and the skill test) decide which edits stay. C8 is therefore not self-improvement by the
+small model. We call it \emph{safeguarded adaptation with a stronger refiner}: the small model's
+harness is adapted while it works, under supervision it cannot provide itself. The five single
+techniques sit between the two: only the separate-refiner condition hands the edits to the larger
+model.
+
 \begin{table}[t]
 \centering
 \small
-\begin{tabular}{p{2.6cm}p{5.0cm}p{6.4cm}}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{L{2.9cm}L{4.8cm}L{7.0cm}}
 \toprule
 Technique & Weakness of C1 it targets & What it does \\
 \midrule

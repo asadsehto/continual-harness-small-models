@@ -1,5 +1,14 @@
 \documentclass[11pt]{article}
 
+% Real space characters in the PDF, so copied or extracted text keeps its spaces
+\ifdefined\pdfgentounicode
+  \input{glyphtounicode}
+  \pdfgentounicode=1
+\fi
+\ifdefined\pdfinterwordspaceon
+  \pdfinterwordspaceon
+\fi
+
 \usepackage[margin=1in]{geometry}
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
@@ -7,6 +16,10 @@
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{booktabs}
+\usepackage{array}
+\usepackage{float}
+\usepackage{makecell}
+\usepackage[section]{placeins}
 \usepackage{multirow}
 \usepackage{graphicx}
 \usepackage{xcolor}
@@ -16,9 +29,13 @@
 \pgfplotsset{compat=1.17}
 \usepackage{enumitem}
 \usepackage[numbers,sort&compress]{natbib}
+\usepackage{xurl}
 \usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
 
 \setlist{itemsep=2pt,topsep=4pt}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\renewcommand{\cellalign}{cc}
+\setlength{\emergencystretch}{2em}
 
 \title{Self-Improving Harnesses Below the Capability Floor:\\
 Continual Harness with Small Local Language Models}

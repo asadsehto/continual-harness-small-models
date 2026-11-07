@@ -12,8 +12,19 @@ tasks/     task.py (task format + helpers), pilot.py (20 pilot tasks: 15 train, 
 scripts/   check_tasks.py (tests every checker), run_pilot.py (runs the agent, saves logs)
 docs/      research plan, notes, results
 runs/      run logs (not in git)
+data/      per-run outcomes used in the paper (no trajectories, no model output)
 results/   summarized results kept in git
+paper/     LaTeX source of the paper
 ```
+
+## Rebuild the paper's tables
+
+```bash
+uv run python -m scripts.make_tables
+```
+
+This reads only `data/` and prints every table in the paper, with Holm-adjusted p-values,
+per-seed results and the determinism check. `scripts/export_data.py` makes `data/` from `runs/`.
 
 ## Run
 

@@ -41,22 +41,35 @@ We test each technique alone and all of them together, against a fixed (static) 
 Reflexion-style memory baseline~\cite{shinn2023reflexion}, on two small models: \texttt{qwen3.5:0.8b}
 (a weak model at 32\% with a fixed harness) and \texttt{gemma4:e2b} (a strong model at 92\%).
 
+\paragraph{What we mean by a capability floor.}
+We use the term in a narrow, testable way. For a given self-editing loop, task set and budget, we
+say a worker model is \emph{below the floor} if running the unmodified loop gives a lower success
+rate than leaving the harness fixed. Our two models are two points on this scale. They can show
+whether each point is above or below the floor on our tasks; they cannot show where the floor lies.
+
 \paragraph{Findings.}
 \begin{itemize}
-  \item \textbf{Continual Harness as-is hurts small models.} With no added techniques, self-editing
-        makes both models significantly worse than a fixed harness: qwen drops from 32\% to 15\%
-        ($p = 0.041$) and gemma from 92\% to 77\% ($p = 0.022$). This confirms the capability floor
-        at both ends of the small-model range.
-  \item \textbf{No single technique is enough, but together they recover the loss.} Each technique
-        alone leaves qwen below the fixed harness (8--22\%). All five together reach 35\%, which is
-        significantly better than Continual Harness as-is (18 tasks better, 6 worse, $p = 0.023$)
-        and level with the fixed harness. On held-out tasks the full system reaches 60\% against
-        27\% for the fixed harness, but this difference is not significant with our sample size.
-  \item \textbf{Reflection alone is harmful.} A Reflexion-style memory, where the model writes notes
-        about its own failures, drops qwen to 5\%: the notes are often wrong and fill the prompt.
-  \item \textbf{For a strong model, the gate mostly says no.} For gemma, the regression gate undid
-        5 of 6 edits, so the final harness stayed close to the starting one. This removes most of
-        the harm (80\%, and much less forgetting) but gives no gain over the fixed harness.
+  \item \textbf{Continual Harness as-is lowered success for both models.} With no added techniques,
+        self-editing gave lower success than a fixed harness: qwen dropped from 32\% to 15\% and
+        gemma from 92\% to 77\%, with the drop seen in 5 of the 6 seeds. For gemma the difference
+        stays significant after correction for multiple comparisons ($p = 0.022$; adjusted
+        $0.045$); for qwen it is significant only before correction ($p = 0.041$; adjusted $0.25$).
+        By our definition, both models are below the floor on these tasks.
+  \item \textbf{No single technique was enough; all five together removed the loss.} Each
+        technique alone left qwen below the fixed harness (8--22\%). All five together (C8) reached
+        35\%, not different from the fixed harness and higher than Continual Harness as-is in all
+        three seeds (18 pairs better, 6 worse; $p = 0.023$ before correction, $0.14$ after). In C8 a
+        larger local model writes the edits, so C8 is \emph{safeguarded adaptation with a stronger
+        refiner}, not self-improvement by the small model.
+  \item \textbf{Held-out results are suggestive only.} On the five held-out tasks, which the system
+        never learned from, C8 passed 60\% of runs against 27\% for the fixed harness (7 pairs
+        better, 2 worse, $p = 0.18$). This is the most interesting number in the study, but with
+        15 runs per condition it is not evidence of a gain.
+  \item \textbf{Reflection alone was harmful.} A Reflexion-style memory, where the model writes
+        notes about its own failures, dropped qwen to 5\%. Many of the notes we read were wrong.
+  \item \textbf{For a strong model, the gate mostly said no.} For gemma, the regression gate undid
+        5 of 6 edits, so the final harness stayed close to the starting one. This reduced the harm
+        (80\%, and less forgetting) but gave no gain over the fixed harness.
 \end{itemize}
 
 \paragraph{Contributions.}
@@ -64,10 +77,13 @@ Reflexion-style memory baseline~\cite{shinn2023reflexion}, on two small models: 
   \item A faithful, open re-implementation of the Continual Harness refiner for local models, with
         a sandbox, fixed size limits and full logging of every edit.
   \item A controlled study of five techniques, alone and combined, on two small models, with paired
-        significance tests and a measure of forgetting.
-  \item Evidence that, below the capability floor, self-editing is harmful by default; that the
-        harm comes from wrong lessons written into the prompt; and that the most useful role of the
-        added techniques is to \emph{limit} harmful edits rather than to create gains.
+        tests, correction for multiple comparisons, per-seed results and a measure of forgetting.
+  \item Evidence at two model sizes that self-editing below the floor is harmful by default, and
+        observations consistent with two explanations: wrong lessons written into the prompt, and
+        longer prompts that make the agent run out of steps. We did not test these explanations
+        with a controlled intervention.
+  \item A release of all per-run outcomes and a single command that rebuilds every table in this
+        paper from them.
 \end{itemize}
 
 The rest of the paper is organised as follows. Section~\ref{sec:related} covers related work,

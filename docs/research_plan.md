@@ -18,7 +18,7 @@ harness, and which added techniques make this possible?**
 
 - H1. Continual Harness ported as-is to a 2B to 5B model gives little or no gain, or makes results worse.
 - H2. Each added technique raises the gain on its own: memory database, separate refiner,
-  verified skill library, structured error feedback, constrained tool calls, regression gate.
+  verified skill library, structured error feedback, regression gate.
 - H3. A bigger local refiner (e.g. gemma4:e4b) improving a smaller worker (gemma4:e2b)
   gives more gain than self-refinement.
 - H4. Without a regression gate, harness edits cause forgetting: tasks that passed before start failing.
@@ -29,7 +29,7 @@ harness, and which added techniques make this possible?**
 |----|-----------|
 | C0 | Static harness (baseline, this repo's Phase 0) |
 | C1 | Continual Harness ported as-is (same model refines itself) |
-| C2–C7 | C1 + one technique each (ablation) |
+| C2–C6 | C1 + one technique each (ablation) |
 | C8 | Full system (all techniques) |
 
 ## Models
@@ -64,6 +64,6 @@ The task set is fixed before seeing any results.
 
 0. Baseline agent, pilot tasks, checkers, timing (this phase)
 1. Port Continual Harness refiner to Ollama (C1)
-2. Add techniques one at a time (C2–C7)
+2. Add techniques one at a time (C2–C6)
 3. Full grid runs, analysis
 4. Paper writing, arXiv, workshop submission

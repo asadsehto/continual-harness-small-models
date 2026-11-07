@@ -2,18 +2,24 @@
 A language-model agent works inside a \emph{harness}: its prompt, memory, tools and helper code.
 Continual Harness lets an agent rewrite its own harness while it works, and it improves large
 frontier models. Its authors suggest that weaker models fall below a ``capability floor'' and cannot
-improve themselves this way. We test this directly with two small models that run on a laptop,
+improve themselves this way. We test this with two small models that run on a laptop,
 \texttt{qwen3.5:0.8b} and \texttt{gemma4:e2b}, on 20 computer tasks (coding, files, shell and data)
 with automatic pass/fail checks. We re-implement Continual Harness for local models and add five
 techniques, each aimed at a weakness of small models: a separate, larger refiner; a regression gate
 that keeps an edit only if recent tasks do not get worse; a memory database with retrieval; skills
-that are kept only if their code runs; and structured error messages. We find three things. First,
-Continual Harness as-is makes both models significantly worse than a fixed harness (qwen: 32\% to
-15\%; gemma: 92\% to 77\%). Second, no single technique brings the small model back to the
-fixed-harness level, but all five together do (qwen: 35\%, significantly better than Continual
-Harness as-is, $p = 0.023$), with a large but not significant gain on held-out tasks (27\% to
-60\%). Third, a simple Reflexion-style memory makes the smallest model much worse (5\%). For the
-stronger model, the regression gate rejects most edits, which removes most of the harm but gives no
-gain over the fixed harness. Self-editing below the capability floor is harmful by default, and
-the main value of our techniques is to limit that harm. We release our code and tasks.
+that are kept only if their code runs; and structured error messages. First, Continual Harness as-is
+lowered success for both models compared with a fixed harness (qwen: 32\% to 15\%; gemma: 92\% to
+77\%), in 5 of 6 seeds. The drop for gemma remains significant after correcting for multiple
+comparisons; the drop for qwen is significant only before correction. Second, no single technique
+brought qwen back to the fixed-harness level. All five together, where a larger local model writes
+the edits and outside checks decide which edits stay, reached 35\%: not different from the fixed
+harness, and above Continual Harness as-is in all three seeds (18 pairs better, 6 worse; $p = 0.023$
+before correction, $0.14$ after). This combined system is a form of \emph{safeguarded adaptation}
+with a stronger refiner, not self-improvement by the small model. On held-out tasks, our main test of
+whether learning transfers, it passed 60\% against 27\% for the fixed harness; with 15 runs per
+condition this is only a suggestive result. Third, a simple Reflexion-style memory made the smaller
+model much worse (5\%). For the stronger model, the regression gate rejected most edits, which
+reduced the harm but gave no gain. Our results are consistent with the view that, at this scale,
+unsupervised self-editing is harmful by default and that outside checks mainly limit that harm. We
+release our code, tasks, per-run outcomes and a script that rebuilds every table.
 \end{abstract}

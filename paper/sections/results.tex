@@ -4,33 +4,35 @@
 \subsection{Main Results on the Weak Model (qwen 0.8B)}
 
 Table~\ref{tab:qwen} gives the results of all nine conditions on \texttt{qwen3.5:0.8b-mlx}, and
-Figure~\ref{fig:qwen} shows them as a chart.
+Figure~\ref{fig:qwen} shows them as a chart. Held-out tasks come first, because they are our main
+test of whether learning carries over (Section~\ref{sec:setup}).
 
 \begin{table}[t]
 \centering
 \small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{lccccc}
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{lccccccc}
 \toprule
-Condition & All (95\% CI) & Train & Held-out (95\% CI) & vs C0: better / worse & $p$ \\
+Condition & \makecell{Held-out\\(95\% CI)} & Train & \makecell{All tasks\\(95\% CI)}
+  & \makecell{vs C0:\\better / worse} & $p$ & \makecell{$p$\\(Holm)} \\
 \midrule
-C0 fixed harness       & 32\% (21--44) & 33\% & 27\% (11--52) & -- & -- \\
-C1 Continual Harness   & 15\% (8--26)  & 16\% & 13\% (4--38)  & 5 / 15  & \textbf{0.041} \\
+C0 fixed harness       & 27\% (11--52) & 33\% & 32\% (21--44) & --      & --      & -- \\
+C1 Continual Harness   & 13\% (4--38)  & 16\% & 15\% (8--26)  & 5 / 15  & 0.041   & 0.25 \\
 \midrule
-+ separate refiner     & 22\% (13--34) & 24\% & 13\% (4--38)  & 6 / 12  & 0.238 \\
-+ regression gate      & 20\% (12--32) & 18\% & 27\% (11--52) & 3 / 10  & 0.092 \\
-+ memory database      & 20\% (12--32) & 20\% & 20\% (7--45)  & 7 / 14  & 0.189 \\
-+ verified skills      & 17\% (9--28)  & 18\% & 13\% (4--38)  & 7 / 16  & 0.093 \\
-+ structured errors    & 8\% (4--18)   & 9\%  & 7\% (1--30)   & 2 / 16  & \textbf{0.001} \\
++ separate refiner     & 13\% (4--38)  & 24\% & 22\% (13--34) & 6 / 12  & 0.238   & 0.57 \\
++ regression gate      & 27\% (11--52) & 18\% & 20\% (12--32) & 3 / 10  & 0.092   & 0.46 \\
++ memory database      & 20\% (7--45)  & 20\% & 20\% (12--32) & 7 / 14  & 0.189   & 0.57 \\
++ verified skills      & 13\% (4--38)  & 18\% & 17\% (9--28)  & 7 / 16  & 0.093   & 0.46 \\
++ structured errors    & 7\% (1--30)   & 9\%  & 8\% (4--18)   & 2 / 16  & 0.001   & \textbf{0.009} \\
 \midrule
-C8 all five            & \textbf{35\%} (24--48) & 27\% & \textbf{60\%} (36--80) & 14 / 12 & 0.845 \\
-Reflexion              & 5\% (2--14)   & 7\%  & 0\% (0--20)   & 1 / 17  & \textbf{$<$0.001} \\
+C8 all five            & 60\% (36--80) & 27\% & 35\% (24--48) & 14 / 12 & 0.845   & 0.85 \\
+Reflexion              & 0\% (0--20)   & 7\%  & 5\% (2--14)   & 1 / 17  & $<$0.001 & \textbf{0.001} \\
 \bottomrule
 \end{tabular}
-\caption{Results on \texttt{qwen3.5:0.8b-mlx} (60 evaluation runs per condition: 20 tasks
-$\times$ 3 seeds). ``Better / worse'' counts the (task, seed) pairs where the condition passed and
-C0 failed, or the opposite. $p$ is the exact McNemar test against C0; bold $p$ means significant
-($p < 0.05$).}
+\caption{Results on \texttt{qwen3.5:0.8b-mlx}: 60 evaluation runs per condition (20 tasks $\times$
+3 seeds), of which 15 are on held-out tasks. ``Better / worse'' counts the (task, seed) pairs where
+the condition passed and C0 failed, or the opposite. $p$ is the exact McNemar test against C0;
+``$p$ (Holm)'' is adjusted for the 8 comparisons with C0. Bold marks an adjusted $p$ below 0.05.}
 \label{tab:qwen}
 \end{table}
 
@@ -41,69 +43,81 @@ C0 failed, or the opposite. $p$ is the exact McNemar test against C0; bold $p$ m
   ybar, bar width=7pt, width=\textwidth, height=6.2cm,
   ymin=0, ymax=70, ylabel={Success rate (\%)},
   symbolic x coords={C0,C1,refiner,gate,memdb,verified,errors,C8,Reflexion},
-  xtick=data, xticklabel style={font=\small, rotate=20, anchor=east},
-  legend style={at={(0.02,0.98)}, anchor=north west, font=\small, draw=none},
+  xtick=data, xticklabel style={font=\small},
+  legend style={at={(0.02,0.98)}, anchor=north west, font=\small, draw=none,
+                /tikz/every even column/.append style={column sep=10pt}},
+  legend columns=2,
   enlarge x limits=0.07,
   nodes near coords, every node near coord/.append style={font=\tiny},
-  extra y ticks={32}, extra y tick labels={}, extra y tick style={grid=major, major grid style={dashed, gray}},
+  extra y ticks={27}, extra y tick labels={}, extra y tick style={grid=major, major grid style={dashed, gray}},
 ]
-\addplot[fill=blue!45, draw=blue!70] coordinates {(C0,32) (C1,15) (refiner,22) (gate,20) (memdb,20) (verified,17) (errors,8) (C8,35) (Reflexion,5)};
 \addplot[fill=orange!55, draw=orange!80] coordinates {(C0,27) (C1,13) (refiner,13) (gate,27) (memdb,20) (verified,13) (errors,7) (C8,60) (Reflexion,0)};
-\legend{All tasks, Held-out tasks}
+\addplot[fill=blue!45, draw=blue!70] coordinates {(C0,32) (C1,15) (refiner,22) (gate,20) (memdb,20) (verified,17) (errors,8) (C8,35) (Reflexion,5)};
+\legend{Held-out tasks, All tasks}
 \end{axis}
 \end{tikzpicture}
 \caption{Success rate of every condition on \texttt{qwen3.5:0.8b-mlx}. The dashed line is the
-fixed harness (C0) on all tasks. Only the full system (C8) reaches it. ``refiner'', ``gate'',
-``memdb'', ``verified'' and ``errors'' are C1 plus one technique.}
+fixed harness (C0) on held-out tasks. ``refiner'', ``gate'', ``memdb'', ``verified'' and
+``errors'' are C1 plus one technique. Held-out bars are based on 15 runs each, so their confidence
+intervals are wide (Table~\ref{tab:qwen}).}
 \label{fig:qwen}
 \end{figure}
 
-\paragraph{Continual Harness as-is makes the small model worse.}
-With a fixed harness, qwen passes 32\% of the tasks. When it edits its own harness (C1), it passes
-only 15\%. Pair by pair, C1 is worse than C0 on 15 (task, seed) pairs and better on only 5, which is
-significant ($p = 0.041$). The drop is similar on train tasks (33\% to 16\%) and held-out tasks
-(27\% to 13\%), so the edits do not even help on the tasks they were learned from.
+\paragraph{On held-out tasks, only C8 is above the fixed harness, and the sample is small.}
+On the 5 held-out tasks, C8 passes 9 of 15 runs (60\%), against 4 of 15 (27\%) for the fixed
+harness. Pair by pair this is 7 better and 2 worse, which is \emph{not} significant ($p = 0.18$),
+and the confidence intervals overlap (36--80\% and 11--52\%). C8 is above C0 on held-out tasks in
+each of the 3 seeds (Table~\ref{tab:seeds}), which is why we find the result interesting, but it
+is suggestive and needs more held-out tasks to confirm. All other conditions are at or below the
+fixed harness on held-out tasks.
+
+\paragraph{Continual Harness as-is lowers success.}
+With a fixed harness, qwen passes 32\% of all tasks. When it edits its own harness (C1), it passes
+15\%. C1 is lower than C0 in every seed (3, 2 and 4 passes against 8, 4 and 7;
+Table~\ref{tab:seeds}). Pair by pair, C1 is worse on 15 (task, seed) pairs and better on 5
+($p = 0.041$). This is a nominal result: after Holm correction for the 8 comparisons with C0, the
+adjusted $p$ is 0.25. The drop is similar on train tasks (33\% to 16\%) and held-out tasks (27\% to
+13\%), so the edits did not even help on the tasks they were learned from.
 
 \paragraph{No single technique is enough.}
-Every technique alone leaves qwen below the fixed harness. Four of them reduce the harm of C1: a
-separate refiner (22\%), the regression gate (20\%), the memory database (20\%) and verified skills
-(17\%). None of these is significantly different from C1 (all $p > 0.4$; Table~\ref{tab:vsc1}).
-Structured errors alone makes things worse (8\%, significantly below C0).
+Every technique alone leaves qwen below the fixed harness on all tasks. Four of them have higher
+success than C1: a separate refiner (22\%), the regression gate (20\%), the memory database
+(20\%) and verified skills (17\%). None of these differs significantly from C1 (all unadjusted
+$p > 0.4$; Table~\ref{tab:vsc1}). Structured errors alone gives the lowest success of the single
+techniques (8\%), significantly below C0 after correction.
 
-\paragraph{All five together recover the fixed-harness level.}
-With all five techniques (C8), qwen passes 35\% of the tasks, level with the fixed harness (14 pairs
-better, 12 worse, $p = 0.845$). Compared with Continual Harness as-is, C8 is \emph{significantly
-better}: 18 pairs better and 6 worse ($p = 0.023$; Table~\ref{tab:vsc1}). It is the only condition
-that is significantly better than C1.
-
-\paragraph{The full system does best on held-out tasks, but the sample is small.}
-On the 5 held-out tasks, C8 passes 9 of 15 runs (60\%), against 4 of 15 (27\%) for the fixed
-harness. Pair by pair this is 7 better and 2 worse, which is \emph{not} significant ($p = 0.18$): the
-confidence intervals overlap (36--80\% and 11--52\%). We treat it as a promising sign, not a result.
-On train tasks, C8 is slightly below C0 (27\% against 33\%).
+\paragraph{All five together are level with the fixed harness and above C1.}
+With all five techniques (C8), qwen passes 35\% of all tasks. This is not different from the fixed
+harness (14 pairs better, 12 worse, $p = 0.85$). Note that ``not different'' is not the same as
+``equal'': with 60 runs we cannot rule out a difference of several points either way. Compared with
+Continual Harness as-is, C8 has higher success in every seed (7, 6 and 8 passes against 3, 2 and 4)
+and is better on 18 pairs and worse on 6 ($p = 0.023$; Table~\ref{tab:vsc1}). This is the only
+comparison with C1 that is nominally significant; after Holm correction for the 6 comparisons with
+C1 it is not ($p = 0.14$). On train tasks, C8 is slightly below C0 (27\% against 33\%).
 
 \paragraph{Reflexion-style memory is the worst condition.}
 When qwen writes reflections about its own failures and reads them on later tasks, it passes only
 5\% of the tasks, and none of the held-out runs. It is worse than C0 on 17 pairs and better on 1
-($p < 0.001$). We look at why in Section~\ref{sec:discussion}.
+(adjusted $p = 0.001$). We discuss possible reasons in Section~\ref{sec:discussion}.
 
 \begin{table}[t]
 \centering
 \small
-\begin{tabular}{lcc}
+\begin{tabular}{lccc}
 \toprule
-Condition (qwen) & vs C1: better / worse & $p$ \\
+Condition (qwen) & vs C1: better / worse & $p$ & $p$ (Holm) \\
 \midrule
-+ separate refiner  & 9 / 5  & 0.424 \\
-+ regression gate   & 10 / 7 & 0.629 \\
-+ memory database   & 10 / 7 & 0.629 \\
-+ verified skills   & 6 / 5  & 1.000 \\
-+ structured errors & 4 / 8  & 0.388 \\
-C8 all five         & 18 / 6 & \textbf{0.023} \\
++ separate refiner  & 9 / 5  & 0.424 & 1.00 \\
++ regression gate   & 10 / 7 & 0.629 & 1.00 \\
++ memory database   & 10 / 7 & 0.629 & 1.00 \\
++ verified skills   & 6 / 5  & 1.000 & 1.00 \\
++ structured errors & 4 / 8  & 0.388 & 1.00 \\
+C8 all five         & 18 / 6 & 0.023 & 0.14 \\
 \bottomrule
 \end{tabular}
-\caption{Paired comparison of each technique with Continual Harness as-is (C1) on qwen. Only the
-full system is significantly better.}
+\caption{Paired comparison of each technique with Continual Harness as-is (C1) on qwen, over all
+60 (task, seed) pairs. ``$p$ (Holm)'' is adjusted for these 6 comparisons. No comparison is
+significant after adjustment; only C8 is nominally significant.}
 \label{tab:vsc1}
 \end{table}
 
@@ -115,17 +129,19 @@ Figure~\ref{fig:models} compares both models.
 \begin{table}[t]
 \centering
 \small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{lccccc}
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{lccccccc}
 \toprule
-Condition & All (95\% CI) & Train & Held-out (95\% CI) & vs C0: better / worse & $p$ \\
+Condition & \makecell{Held-out\\(95\% CI)} & Train & \makecell{All tasks\\(95\% CI)}
+  & \makecell{vs C0:\\better / worse} & $p$ & \makecell{$p$\\(Holm)} \\
 \midrule
-C0 fixed harness     & \textbf{92\%} (82--96) & 96\% & 80\% (55--93) & -- & -- \\
-C1 Continual Harness & 77\% (65--86) & 82\% & 60\% (36--80) & 2 / 11 & \textbf{0.022} \\
-C8 all five          & 80\% (68--88) & 82\% & 73\% (48--89) & 2 / 9  & 0.065 \\
+C0 fixed harness     & 80\% (55--93) & 96\% & 92\% (82--96) & --     & --    & -- \\
+C1 Continual Harness & 60\% (36--80) & 82\% & 77\% (65--86) & 2 / 11 & 0.022 & \textbf{0.045} \\
+C8 all five          & 73\% (48--89) & 82\% & 80\% (68--88) & 2 / 9  & 0.065 & 0.065 \\
 \bottomrule
 \end{tabular}
-\caption{Results on \texttt{gemma4:e2b-it-qat} (60 evaluation runs per condition).}
+\caption{Results on \texttt{gemma4:e2b-it-qat} (60 evaluation runs per condition, 15 of them on
+held-out tasks). ``$p$ (Holm)'' is adjusted for the 2 comparisons with C0.}
 \label{tab:gemma}
 \end{table}
 
@@ -137,7 +153,8 @@ C8 all five          & 80\% (68--88) & 82\% & 73\% (48--89) & 2 / 9  & 0.065 \\
   ymin=0, ymax=105, ylabel={Success rate (\%)},
   symbolic x coords={qwen,gemma},
   xtick=data, xticklabels={qwen 0.8B, gemma e2b}, enlarge x limits=0.45,
-  legend style={at={(0.5,1.02)}, anchor=south, legend columns=3, font=\small, draw=none},
+  legend style={at={(0.5,1.03)}, anchor=south, legend columns=3, font=\small, draw=none,
+                /tikz/every even column/.append style={column sep=12pt}},
   nodes near coords, every node near coord/.append style={font=\scriptsize},
 ]
 \addplot[fill=gray!45, draw=gray!80] coordinates {(qwen,32) (gemma,92)};
@@ -146,21 +163,86 @@ C8 all five          & 80\% (68--88) & 82\% & 73\% (48--89) & 2 / 9  & 0.065 \\
 \legend{C0 fixed harness, C1 Continual Harness, C8 all five}
 \end{axis}
 \end{tikzpicture}
-\caption{The three main conditions on both models. In both, Continual Harness as-is (C1) is
-significantly worse than the fixed harness, and the full system (C8) is better than C1. Only for
-the weak model does C8 reach the fixed harness.}
+\caption{Success on all tasks for the three main conditions on both models. For both, Continual
+Harness as-is (C1) is below the fixed harness (C0), and the full system (C8) is above C1. Only for
+the weak model does C8 reach the fixed harness. The two models ran on different servers, so compare
+the direction of the effects, not the exact numbers across models.}
 \label{fig:models}
 \end{figure}
 
 \paragraph{The main finding repeats on a second model.}
 Gemma is much stronger: with the fixed harness it already passes 92\% of the tasks. Continual
-Harness as-is again makes it significantly worse, dropping to 77\% (11 pairs worse, 2 better,
-$p = 0.022$). So self-editing harms both a weak and a strong small model.
+Harness as-is again lowers success, to 77\% (11 pairs worse, 2 better, $p = 0.022$; adjusted
+$p = 0.045$). It is lower in 2 seeds and equal in the third (16, 14 and 16 passes against 19, 20
+and 16). So, on our tasks, both a weak and a strong small model are below the floor as we define it
+in Section~\ref{sec:intro}.
 
 \paragraph{The full system helps less on the strong model.}
 C8 reaches 80\% on gemma, slightly above C1 (11 pairs better, 9 worse, $p = 0.82$) and still below
-the fixed harness (not significant, $p = 0.065$). On held-out tasks C8 gives 73\%, between C1
-(60\%) and C0 (80\%). With a baseline this close to 100\%, there is little room for any gain.
+the fixed harness (2 pairs better, 9 worse, $p = 0.065$). On held-out tasks C8 gives 73\%, between
+C1 (60\%) and C0 (80\%). With a baseline this close to 100\%, there is little room for any gain.
+
+\subsection{Held-out Tasks and Per-seed Results}
+
+Table~\ref{tab:heldout} gives the paired comparisons on held-out tasks only, and
+Table~\ref{tab:seeds} gives the number of passes in every seed.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+ & \multicolumn{2}{c}{qwen 0.8B} & \multicolumn{2}{c}{gemma e2b} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Comparison (held-out only) & better / worse & $p$ & better / worse & $p$ \\
+\midrule
+C1 vs C0 & 1 / 3 & 0.63 & 0 / 3 & 0.25 \\
+C8 vs C0 & 7 / 2 & 0.18 & 2 / 3 & 1.00 \\
+C8 vs C1 & 9 / 2 & 0.065 & 5 / 3 & 0.73 \\
+\bottomrule
+\end{tabular}
+\caption{Paired comparisons on the 15 held-out (task, seed) pairs per condition, with unadjusted
+exact McNemar $p$-values. None is significant.}
+\label{tab:heldout}
+\end{table}
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{llcc}
+\toprule
+Model & Condition & \makecell{All tasks: passes of 20\\(seed 0 / 1 / 2)} & \makecell{Held-out: passes of 5\\(seed 0 / 1 / 2)} \\
+\midrule
+qwen  & C0 fixed harness    & 8 / 4 / 7  & 1 / 1 / 2 \\
+qwen  & C1                  & 3 / 2 / 4  & 0 / 1 / 1 \\
+qwen  & + separate refiner  & 4 / 3 / 6  & 1 / 0 / 1 \\
+qwen  & + regression gate   & 5 / 2 / 5  & 2 / 0 / 2 \\
+qwen  & + memory database   & 3 / 9 / 0  & 0 / 3 / 0 \\
+qwen  & + verified skills   & 5 / 0 / 5  & 0 / 0 / 2 \\
+qwen  & + structured errors & 4 / 1 / 0  & 1 / 0 / 0 \\
+qwen  & C8 all five         & 7 / 6 / 8  & 2 / 3 / 4 \\
+qwen  & Reflexion           & 2 / 1 / 0  & 0 / 0 / 0 \\
+\midrule
+gemma & C0 fixed harness    & 19 / 20 / 16 & 5 / 5 / 2 \\
+gemma & C1                  & 16 / 14 / 16 & 3 / 4 / 2 \\
+gemma & C8 all five         & 18 / 12 / 18 & 4 / 3 / 4 \\
+\bottomrule
+\end{tabular}
+\caption{Passes at evaluation in each seed. Appendix~\ref{app:pertask} gives the result of every
+task, and the released data give the outcome of every single run.}
+\label{tab:seeds}
+\end{table}
+
+\paragraph{No held-out difference is significant.}
+On held-out tasks, the largest difference is C8 against C1 on qwen (9 pairs better, 2 worse,
+$p = 0.065$). The direction is the same as on all tasks, but none of these comparisons reaches
+$p < 0.05$, even before correction.
+
+\paragraph{Seeds vary a lot for some conditions.}
+Most conditions give similar results in each seed, but some do not. The memory database on qwen
+passes 3, 9 and 0 tasks in its three seeds, and verified skills 5, 0 and 5. In a learning condition
+each seed produces its own final harness, so one good or bad harness moves 20 results at once. This
+is why we report seeds separately and treat the pair-level $p$-values with care.
 
 \subsection{What Happens to the Edits}
 
@@ -170,15 +252,16 @@ the final harness looked like.
 \begin{table}[t]
 \centering
 \small
-\begin{tabular}{llccl}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{llccL{5.6cm}}
 \toprule
-Model & Condition & Refiner runs & Gate: kept / undone & Final harness (per seed) \\
+Model & Condition & \makecell{Refiner\\runs} & \makecell{Gate: kept\\/ undone} & Final harness (per seed) \\
 \midrule
-qwen  & C1              & 17 & -- & strategy 2.8k--3.3k chars, 1--4 skills, 1--5 sub-agents \\
+qwen  & C1                & 17 & --     & strategy 2.8k--3.3k characters, 1--4 skills, 1--5 sub-agents \\
 qwen  & + regression gate & 16 & 13 / 3 & one seed ends with the starting strategy \\
-qwen  & C8              & 14 & 11 / 3 & strategy 3.5k--4.0k chars, 0--3 skills, 3--5 sub-agents \\
-gemma & C1              & 6  & -- & strategy 2.4k--3.5k chars, 1--5 skills, 1--3 sub-agents \\
-gemma & C8              & 6  & 1 / 5  & \textbf{2 of 3 seeds: exactly the starting harness} \\
+qwen  & C8                & 14 & 11 / 3 & strategy 3.5k--4.0k characters, 0--3 skills, 3--5 sub-agents \\
+gemma & C1                & 6  & --     & strategy 2.4k--3.5k characters, 1--5 skills, 1--3 sub-agents \\
+gemma & C8                & 6  & 1 / 5  & 2 of 3 seeds: exactly the starting harness \\
 \bottomrule
 \end{tabular}
 \caption{Edits over all 3 seeds. ``Refiner runs'' counts the times the four passes ran. The gate
@@ -186,18 +269,19 @@ compares the old and new harness on up to 3 recent train tasks.}
 \label{tab:edits}
 \end{table}
 
-\paragraph{For qwen, the gate cannot tell good edits from bad ones.}
-In the regression-gate run, the gate kept 13 of 16 edits, but 10 of the 13 were \emph{ties}: 7 times
-both harnesses passed 0 of the rerun tasks, and 3 times both passed 1. Only 3 kept edits were real
-gains. In C8, the gate kept 11 of 14, and again 9 of the 11 were ties. When the model fails most
-tasks, a test on 3 recent tasks gives almost no signal, and most edits pass the test by default.
+\paragraph{For qwen, the gate gives little signal.}
+In the regression-gate run, the gate kept 13 of 16 edits, but 10 of the 13 were \emph{ties}: 7
+times both harnesses passed 0 of the rerun tasks, and 3 times both passed 1. Only 3 kept edits
+improved the rerun score. In C8, the gate kept 11 of 14, and again 9 of the 11 were ties. When the
+model fails most tasks, a test on 3 recent tasks gives almost no signal, and because a tie counts as
+a pass, most edits are kept by default.
 
 \paragraph{For gemma, the gate rejects almost everything.}
 In C8 on gemma, the gate undid 5 of 6 edits, because each time the new harness passed fewer of the
 rerun tasks than the old one. The one edit it kept was a tie. In 2 of the 3 seeds, the final harness
-was exactly the starting harness. This explains why C8 on gemma behaves much like the fixed harness:
-for those seeds, the only differences from C0 are the structured error messages and the sampling
-noise.
+was exactly the starting harness. For those seeds, the only differences between C8 and C0 at
+evaluation are the structured error messages and run-to-run drift. This fits with C8 on gemma
+behaving much like the fixed harness.
 
 \paragraph{Gemma learns from fewer steps.}
 The refiner ran only 6 times on gemma against 14--18 times on qwen, because gemma solves tasks in
@@ -215,17 +299,17 @@ evaluation with the final harness.
 \toprule
 Model & Condition & Passed while learning & Of those, failed at evaluation \\
 \midrule
-qwen  & C1                & 12 / 45 & 8 (67\%) \\
-qwen  & + separate refiner & 13 / 45 & 8 (62\%) \\
-qwen  & + regression gate & 14 / 45 & 8 (57\%) \\
-qwen  & + memory database & 12 / 45 & 8 (67\%) \\
-qwen  & + verified skills & 11 / 45 & 7 (64\%) \\
+qwen  & C1                  & 12 / 45 & 8 (67\%) \\
+qwen  & + separate refiner  & 13 / 45 & 8 (62\%) \\
+qwen  & + regression gate   & 14 / 45 & 8 (57\%) \\
+qwen  & + memory database   & 12 / 45 & 8 (67\%) \\
+qwen  & + verified skills   & 11 / 45 & 7 (64\%) \\
 qwen  & + structured errors & 10 / 45 & 6 (60\%) \\
-qwen  & C8                & 18 / 45 & 10 (56\%) \\
-qwen  & Reflexion         & 7 / 45  & 6 (86\%) \\
+qwen  & C8                  & 18 / 45 & 10 (56\%) \\
+qwen  & Reflexion           & 7 / 45  & 6 (86\%) \\
 \midrule
-gemma & C1                & 42 / 45 & 7 (17\%) \\
-gemma & C8                & 40 / 45 & 3 (8\%) \\
+gemma & C1                  & 42 / 45 & 7 (17\%) \\
+gemma & C8                  & 40 / 45 & 3 (8\%) \\
 \bottomrule
 \end{tabular}
 \caption{Forgetting: train tasks passed during learning that failed at evaluation.}
@@ -234,15 +318,15 @@ gemma & C8                & 40 / 45 & 3 (8\%) \\
 
 \paragraph{Forgetting is high for qwen in every condition.}
 More than half of the tasks qwen solved while learning failed again at evaluation, in every
-condition, with or without the gate. For a weak model, part of this is plain chance: a model that
+condition, with or without the gate. For a weak model, much of this can be chance: a model that
 passes a task one time in three will often fail it the next time, even with the same harness. So
-forgetting alone cannot separate the effect of the edits from this noise. Still, C8 passed the
-most train tasks while learning (18 of 45, against 12 for C1).
+forgetting alone cannot separate the effect of the edits from this noise. C8 passed the most train
+tasks while learning (18 of 45, against 12 for C1).
 
-\paragraph{For gemma, the gate halves forgetting.}
+\paragraph{For gemma, forgetting is lower with C8.}
 Gemma passes almost every train task while learning. With C1, 7 of those 42 then fail at
-evaluation; with C8, only 3 of 40 do. Because the gate undid most edits, fewer changes could break
-tasks that already worked.
+evaluation; with C8, 3 of 40 do. This fits with the gate undoing most edits, so that fewer changes
+could break tasks that already worked, but counts this small could also differ by chance.
 
 \subsection{Cost and Behaviour}
 
@@ -252,45 +336,47 @@ tasks that already worked.
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{llccccc}
 \toprule
-Model & Condition & Steps / task & Hit 15-step limit & Seconds / task & Prompt tokens / task & Learning min / seed \\
+Model & Condition & \makecell{Steps\\per task} & \makecell{Hit 15-step\\limit} & \makecell{Seconds\\per task}
+  & \makecell{Prompt tokens\\per task} & \makecell{Learning min\\per seed} \\
 \midrule
 qwen  & C0                  & 9.8  & 29 / 60 & 14.5 & 14{,}240 & -- \\
-qwen  & C1                  & 13.9 & 53 / 60 & 29.7 & 44{,}875 & 13.5 \\
-qwen  & + separate refiner  & 12.4 & 43 / 60 & 19.3 & 46{,}132 & 13.7 \\
-qwen  & + regression gate   & 13.0 & 45 / 60 & 18.3 & 30{,}745 & 11.8 \\
-qwen  & + memory database   & 13.8 & 51 / 60 & 22.9 & 43{,}247 & 10.6 \\
-qwen  & + verified skills   & 13.7 & 50 / 60 & 29.2 & 37{,}521 & 15.2 \\
-qwen  & + structured errors & 13.6 & 51 / 60 & 26.7 & 46{,}262 & 17.0 \\
-qwen  & C8                  & 10.4 & 31 / 60 & 28.1 & 33{,}662 & 23.9 \\
-qwen  & Reflexion           & 14.4 & 54 / 60 & 22.3 & 27{,}280 & 22.4 \\
+qwen  & C1                  & 13.9 & 53 / 60 & 29.7 & 44{,}875 & 8.0 \\
+qwen  & + separate refiner  & 12.4 & 43 / 60 & 19.3 & 46{,}132 & 12.5 \\
+qwen  & + regression gate   & 13.0 & 45 / 60 & 18.3 & 30{,}745 & 10.5 \\
+qwen  & + memory database   & 13.8 & 51 / 60 & 22.9 & 43{,}247 & 6.4 \\
+qwen  & + verified skills   & 13.7 & 50 / 60 & 29.2 & 37{,}521 & 8.6 \\
+qwen  & + structured errors & 13.6 & 51 / 60 & 26.7 & 46{,}262 & 9.0 \\
+qwen  & C8                  & 10.4 & 31 / 60 & 28.1 & 33{,}662 & 19.6 \\
+qwen  & Reflexion           & 14.4 & 54 / 60 & 22.3 & 27{,}280 & 8.0 \\
 \midrule
-gemma & C0                  & 5.1  & 2 / 60  & 14.5 & 3{,}403 & -- \\
-gemma & C1                  & 4.6  & 1 / 60  & 14.7 & 8{,}400 & 10.2 \\
-gemma & C8                  & 5.0  & 1 / 60  & 11.4 & 5{,}154 & 7.6 \\
+gemma & C0                  & 5.1  & 2 / 60  & 14.5 & 3{,}403  & -- \\
+gemma & C1                  & 4.6  & 1 / 60  & 14.7 & 8{,}400  & 5.3 \\
+gemma & C8                  & 5.0  & 1 / 60  & 11.4 & 5{,}154  & 5.9 \\
 \bottomrule
 \end{tabular}
-\caption{Behaviour and cost at evaluation. Prompt tokens are summed over all steps of a task.}
+\caption{Behaviour and cost at evaluation. Prompt tokens are summed over all steps of a task.
+Learning time per seed includes the learning tasks, refiner calls, gate reruns and Reflexion's reflections.}
 \label{tab:cost}
 \end{table}
 
 Table~\ref{tab:cost} shows behaviour and cost.
 
 \paragraph{Failing conditions get stuck.}
-With the fixed harness, qwen hits the 15-step limit in 29 of 60 runs. With C1 it hits it in 53 of 60:
-instead of finishing, it keeps calling tools until it runs out of steps. The conditions with the
+With the fixed harness, qwen hits the 15-step limit in 29 of 60 runs. With C1 it hits it in 53 of
+60: instead of finishing, it keeps calling tools until it runs out of steps. The conditions with the
 lowest success (structured errors, Reflexion) hit the limit most often (51 and 54 of 60). C8 is the
 only learning condition that stays close to the fixed harness (31 of 60), and it is also the only
-one that matches its success rate.
+one whose success is close to it.
 
 \paragraph{Self-editing makes the prompt much longer.}
 With C1, qwen uses three times as many prompt tokens per task as with the fixed harness (44{,}875
-against 14{,}240), because of the longer strategy and the extra memory, skills and sub-agents, and
-because more steps are used. Gemma's prompts grow 2.5 times (3{,}403 to 8{,}400). In C8 the growth
-is smaller on both models.
+against 14{,}240). Part of this comes from the longer strategy and the extra memory, skills and
+sub-agents, and part from the extra steps, since every step re-sends the prompt. Gemma's prompts
+grow 2.5 times (3{,}403 to 8{,}400). In C8 the growth is smaller on both models.
 
 \paragraph{The full system costs about twice the time on qwen.}
-C8 takes 28.1 seconds per task against 14.5 for the fixed harness, plus about 24 minutes of learning
-per seed (refiner calls and gate runs). On gemma C8 is even slightly faster than C1, because most
+C8 takes 28.1 seconds per task against 14.5 for the fixed harness, plus about 20 minutes of learning
+per seed (learning tasks, refiner calls and gate reruns). On gemma C8 is even slightly faster than C1, because most
 edits were undone.
 
 \paragraph{Format errors are rare, except after edits.}
@@ -307,7 +393,7 @@ Table~\ref{tab:tooluse} counts calls to skills and sub-agents over all phases of
 \small
 \begin{tabular}{llcc}
 \toprule
-Model & Condition & \texttt{run\_skill} calls & \texttt{call\_subagent} calls \\
+Model & Condition & \makecell{Skill calls\\(\texttt{run\_skill})} & \makecell{Sub-agent calls\\(\texttt{call\_subagent})} \\
 \midrule
 qwen  & C1                  & 3  & 0 \\
 qwen  & + separate refiner  & 45 & 3 \\

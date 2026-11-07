@@ -1,10 +1,10 @@
 \section{All Tasks}
 \label{app:tasks}
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
 \small
-\begin{tabular}{llp{10.4cm}}
+\begin{tabular}{llL{10.2cm}}
 \toprule
 Task & Kind & What the agent must do \\
 \midrule
@@ -34,12 +34,13 @@ Task & Kind & What the agent must do \\
 \bottomrule
 \end{tabular}
 \caption{The 20 tasks. Each is checked automatically from the final state of its folder.}
+\label{tab:tasks}
 \end{table}
 
 \section{Results per Task}
 \label{app:pertask}
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3.5pt}
@@ -75,6 +76,7 @@ Total (of 60)             & 19 & 9 & 13 & 12 & 12 & 10 & 5 & 21 & 3 & 55 & 46 & 
 \end{tabular}
 \caption{Number of seeds (out of 3) in which each task passed at evaluation. The last five rows are
 the held-out tasks.}
+\label{tab:pertask}
 \end{table}
 
 \section{Structured Error Example}
@@ -96,11 +98,17 @@ Traceback (most recent call last):
     from mathutils import add_numbers
 ImportError: cannot import name 'add_numbers' from 'mathutils'
 \end{verbatim}
-The 14 error types are: \texttt{outside\_task\_folder}, \texttt{file\_not\_found},
-\texttt{blocked\_by\_sandbox}, \texttt{timeout}, \texttt{task\_folder\_deleted},
-\texttt{bad\_tool\_call}, \texttt{unknown\_skill\_or\_subagent}, \texttt{module\_not\_found},
-\texttt{command\_not\_found}, \texttt{syntax\_error}, \texttt{test\_failed},
-\texttt{python\_exception}, \texttt{write\_failed} and \texttt{command\_failed}.
+The 14 error types are:
+\begin{center}
+\small
+\begin{tabular}{lll}
+\texttt{outside\_task\_folder} & \texttt{file\_not\_found} & \texttt{blocked\_by\_sandbox} \\
+\texttt{timeout} & \texttt{task\_folder\_deleted} & \texttt{bad\_tool\_call} \\
+\texttt{unknown\_skill\_or\_subagent} & \texttt{module\_not\_found} & \texttt{command\_not\_found} \\
+\texttt{syntax\_error} & \texttt{test\_failed} & \texttt{python\_exception} \\
+\texttt{write\_failed} & \texttt{command\_failed} & \\
+\end{tabular}
+\end{center}
 
 \section{Reflexion Prompt}
 \label{app:reflexion}
@@ -127,10 +135,10 @@ Reply with the reflection only.
 \section{All Settings}
 \label{app:settings}
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
 \small
-\begin{tabular}{ll}
+\begin{tabular}{lL{9.6cm}}
 \toprule
 Setting & Value \\
 \midrule
@@ -146,29 +154,51 @@ Strategy limit & 4{,}000 characters \\
 Memory limit (C1) & 20 notes of 500 characters \\
 Skill limit & 10 skills of 3{,}000 characters of code \\
 Sub-agent limit & 5 sub-agents, 8 turns each \\
-Regression gate & rerun up to 3 recent train tasks; keep if not fewer passes \\
+Regression gate & rerun up to 3 recent train tasks with the new harness; keep the edit if it passes at least as many as the old harness did (a tie keeps the edit) \\
 Memory database & up to 200 notes; top 5 by cosine similarity (\texttt{nomic-embed-text}) \\
 Reflexion & reflect after failed train tasks; keep last 3; 500 characters each \\
 Separate refiner & \texttt{gemma4:e4b} \\
 \bottomrule
 \end{tabular}
 \caption{Settings used in all runs.}
+\label{tab:settings}
 \end{table}
 
-\section{Reproducing the Results}
+\section{Data and Reproduction}
 \label{app:repro}
 
-The code, tasks and checkers are available at
-\url{https://github.com/asadsehto/continual-harness-small-models}. The main commands are:
+\paragraph{Code and data.}
+The code, tasks, checkers and data are available at
+\url{https://github.com/asadsehto/continual-harness-small-models}. The folder \texttt{data/} holds
+the outcome of every task run used in this paper (learning, gate reruns and evaluation: 1{,}256
+runs), with its pass/fail result, steps, stop reason, tokens and time; every refiner run with the
+size of the harness after it and the gate's decision; the final harness size of every seed; skill and
+sub-agent calls; and the Ollama version and model file digest of every model. The data contain no
+trajectories, so no model output or file content is included.
+
+\paragraph{Rebuilding the tables.}
+One command rebuilds every table and chart number in this paper from \texttt{data/}, including the
+Holm-adjusted $p$-values, the per-seed results and the determinism check:
 \begin{verbatim}
-uv run python -m scripts.check_tasks          # test every checker
-uv run python -m scripts.run_pilot --model <model> --tasks all --seeds 3   # C0
-uv run python -m scripts.run_phase1 --model <model> --seeds 3              # C1
-uv run python -m scripts.run_phase1 --model <model> --seeds 3 \
+uv run python -m scripts.make_tables
+\end{verbatim}
+
+\paragraph{Running the experiments again.}
+These commands run the conditions from scratch (they need Ollama and the models):
+\begin{verbatim}
+uv run python -m scripts.check_tasks        # test every checker
+uv run python -m scripts.run_pilot \
+    --model <model> --tasks all --seeds 3   # C0
+uv run python -m scripts.run_phase1 \
+    --model <model> --seeds 3               # C1
+uv run python -m scripts.run_phase1 \
+    --model <model> --seeds 3 \
     --refiner-model gemma4:e4b --gate --memory-db \
-    --verified-skills --structured-errors                                  # C8
-uv run python -m scripts.run_phase1 --model <model> --seeds 3 --reflexion  # Reflexion
-uv run python -m scripts.analyze <C0 run> name=<run> ...                   # tables
+    --verified-skills --structured-errors   # C8
+uv run python -m scripts.run_phase1 \
+    --model <model> --seeds 3 --reflexion   # Reflexion
+uv run python -m scripts.export_data        # runs/ to data/
 \end{verbatim}
 Each run saves its settings, the server version and model digest, every step, every harness edit
-(before and after) and every result.
+(before and after) and every result. Runs on other hardware or Ollama versions will not repeat our
+numbers exactly (Section~\ref{sec:setup}), but should show the same pattern.
